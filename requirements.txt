@@ -1,0 +1,11 @@
+# Core analysis pipeline
+scenedetect>=0.6.4       # shot/cut detection on top of ffmpeg
+opencv-python-headless>=4.9   # frame extraction/sampling for scenedetect + AI classifier
+pytesseract>=0.3.10      # offline OCR fallback (requires the Tesseract binary installed separately)
+Pillow>=10.0             # image handling for frame sampling
+
+# AI vision backends (analysis/ai_classifier.py)
+requests>=2.31           # HTTP client used by both the Ollama and Gemini backends
+
+# Tests
+pytest>=8.0
