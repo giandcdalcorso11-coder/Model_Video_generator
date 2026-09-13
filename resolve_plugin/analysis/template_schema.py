@@ -58,6 +58,29 @@ class Gap:
 
 
 @dataclass
+class VoiceSegment:
+    """One spoken utterance detected by Whisper's voice-activity detection.
+    Becomes its own audio "box" on the dedicated voice track -- one slot per
+    intervento parlato, independently replaceable/trimmable."""
+
+    index: int
+    start_seconds: float
+    end_seconds: float
+    transcript: str = ""
+
+
+@dataclass
+class MusicSegment:
+    """Whatever isn't detected as speech: the complement of VoiceSegments
+    across the whole video, kept as one continuous box unless a possible
+    music change was flagged (see EffectNote, source="heuristic")."""
+
+    index: int
+    start_seconds: float
+    end_seconds: float
+
+
+@dataclass
 class ClipSlot:
     """One shot from the source video, i.e. one slot in the generated
     timeline. `index` is the slot's position (0-based) and is what the
@@ -80,8 +103,18 @@ class Template:
     fps: float
     clips: list[ClipSlot] = field(default_factory=list)
     gaps: list[Gap] = field(default_factory=list)
+    # On-screen graphic text (captions/titles baked into the picture),
+    # detected from frames via OCR/vision AI. Rendered as one subtitle track.
     texts: list[TextOverlay] = field(default_factory=list)
     effect_notes: list[EffectNote] = field(default_factory=list)
+    # Spoken-word transcript (from Whisper), one entry per VoiceSegment.
+    # Deliberately a SEPARATE list from `texts` -- never merged -- so the
+    # on-screen-text feature and the dialogue-transcript feature can never
+    # clobber each other's data. Rendered as its own, separately named
+    # subtitle track.
+    dialogue: list[TextOverlay] = field(default_factory=list)
+    voice_segments: list[VoiceSegment] = field(default_factory=list)
+    music_segments: list[MusicSegment] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -104,4 +137,7 @@ class Template:
             gaps=[Gap(**g) for g in data.get("gaps", [])],
             texts=[TextOverlay(**t) for t in data.get("texts", [])],
             effect_notes=[EffectNote(**e) for e in data.get("effect_notes", [])],
+            dialogue=[TextOverlay(**t) for t in data.get("dialogue", [])],
+            voice_segments=[VoiceSegment(**v) for v in data.get("voice_segments", [])],
+            music_segments=[MusicSegment(**m) for m in data.get("music_segments", [])],
         )

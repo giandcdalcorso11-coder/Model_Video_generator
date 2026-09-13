@@ -21,6 +21,8 @@ costi né limiti di richieste.
   (in alternativa: una API key gratuita di Google Gemini, vedi sotto).
 - Facoltativo: [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) nel PATH,
   usato come riconoscimento testo offline aggiuntivo.
+- La separazione voce/musica (vedi sotto) usa Whisper via `faster-whisper`, incluso
+  in `requirements.txt`: gira su CPU, non serve una GPU né una API key.
 
 ## Installazione
 
@@ -74,8 +76,10 @@ serve una API key gratuita da [Google AI Studio](https://aistudio.google.com)):
    analisi AI per clip).
 4. A fine analisi, seleziona il progetto e clicca **Costruisci timeline**: Resolve
    crea una nuova timeline che replica tagli, spazi vuoti (come clip segnaposto
-   nere), testi a schermo (come tracca sottotitoli con i tempi corretti) e marker
-   gialli dove è stato rilevato un effetto/transizione.
+   nere), testi a schermo (tracca sottotitoli "Testo a schermo"), il parlato
+   trascritto (tracca sottotitoli separata "Dialogo (trascrizione)"), voce e
+   musica su due tracce audio dedicate ("Voce"/"Musica") e marker gialli dove è
+   stato rilevato un effetto/transizione o un possibile cambio di canzone.
 5. Nella sezione **Sostituisci con i miei video**, seleziona una clip dalla lista e
    **Assegna video a questa clip**: il tuo video viene aggiunto come "Take"
    alternativo sullo stesso slot (durata, posizione ed effetti restano quelli del
@@ -83,15 +87,47 @@ serve una API key gratuita da [Google AI Studio](https://aistudio.google.com)):
 6. Esporta normalmente dalla pagina **Deliver** di Resolve — il rendering finale è
    sempre quello nativo di Resolve, il plugin non tocca l'export.
 
+## Separazione voce/musica e trascrizione (dialogo)
+
+Questa funzione è **indipendente** da quella dei testi a schermo (punto precedente):
+legge cosa viene **detto** nell'audio (via Whisper), non cosa è **scritto** nell'immagine
+(via OCR/AI vision). I due percorsi non si toccano mai: campi diversi in `template.json`
+(`texts` per i testi a schermo, `dialogue`/`voice_segments`/`music_segments` per il
+parlato), file .srt separati, tracce Resolve separate e rinominate — così non puoi
+ritrovarti scritte a schermo mischiate ai sottotitoli del parlato o viceversa.
+
+Cosa succede in pratica quando costruisci la timeline:
+- **Traccia audio "Voce"**: un blocco per ogni intervento parlato rilevato da Whisper,
+  con la durata esatta di quell'intervento — esattamente il "box separato" richiesto.
+- **Traccia audio "Musica"**: un blocco continuo per tutto ciò che non è parlato,
+  salvo che venga segnalato un possibile cambio di canzone (vedi sotto).
+- **Traccia sottotitoli "Dialogo (trascrizione)"**: la trascrizione testuale di ogni
+  intervento parlato, con gli stessi tempi — separata dalla traccia "Testo a schermo".
+
+Limiti onesti da conoscere:
+- **Non è vera separazione audio (niente rimozione della voce dalla musica)**: i blocchi
+  "Voce" e "Musica" sono ritagli temporali dello **stesso** audio originale misto — se nel
+  video si parla sopra una base musicale, quella musica resta udibile anche nel blocco
+  "Voce" in quel punto. Una vera isolazione vocale richiederebbe un modello molto più
+  pesante (es. Demucs), fuori dall'obiettivo "gratuito e leggero" del progetto.
+- **Il "possibile cambio musica" è un'euristica sul volume**, non un vero riconoscimento
+  di canzoni: rileva salti di intensità sonora sostenuti e li segna con un marker giallo
+  da verificare a orecchio — non taglia mai automaticamente la traccia musica, per evitare
+  tagli sbagliati nel posto sbagliato.
+- Whisper gira su CPU (modello `base` di default, configurabile in `user_config.json`
+  con `"whisper_model_size"`) e rileva/trascrive automaticamente qualsiasi lingua.
+- Puoi disattivare del tutto questa analisi (se non ti serve o vuoi accelerare
+  l'elaborazione) impostando in `user_config.json`: `{ "enable_speech_analysis": false }`.
+
 ## Limiti noti
 
 - **Le transizioni non vengono riapplicate automaticamente**: l'API di scripting di
   Resolve non permette di aggiungere transizioni via codice. Compaiono come marker
   gialli sulla timeline con un'etichetta (es. "cross dissolve") da applicare a mano
   trascinando l'effetto da Resolve.
-- **I testi rilevati appaiono come tracca sottotitoli**, non come Text+ nativo — è il
-  meccanismo di scripting più stabile per avere i tempi esatti. Puoi convertirli o
-  restilizzarli manualmente in Text+ dopo la generazione.
+- **I testi rilevati (a schermo e dialogo) appaiono come tracce sottotitoli**, non come
+  Text+ nativo — è il meccanismo di scripting più stabile per avere i tempi esatti. Puoi
+  convertirli o restilizzarli manualmente in Text+ dopo la generazione.
 - **Zoom/pan/velocità**: lo schema del template (`TransformEffect`) supporta già
   queste proprietà (`TimelineItem.SetProperty`), ma il rilevamento automatico di
   questi effetti dal video sorgente non è ancora implementato nella pipeline di
@@ -122,7 +158,8 @@ l'installazione, verifica a mano che:
 - [ ] **Costruisci timeline** crei davvero una nuova timeline nel progetto Resolve corrente.
 - [ ] I tagli sulla timeline generata corrispondano a quelli del video originale.
 - [ ] Gli spazi vuoti rilevati appaiano come clip nere segnaposto della giusta durata.
-- [ ] Se il video aveva testo a schermo, compaia una tracca sottotitoli con i tempi giusti.
-- [ ] Se il video aveva transizioni, compaiano marker gialli nei punti giusti.
+- [ ] Se il video aveva testo a schermo, compaia una tracca sottotitoli "Testo a schermo" con i tempi giusti.
+- [ ] Se il video aveva parlato, compaiano due tracce audio "Voce"/"Musica" e una tracca sottotitoli "Dialogo (trascrizione)" separata da quella del testo a schermo.
+- [ ] Se il video aveva transizioni (o un cambio di canzone), compaiano marker gialli nei punti giusti.
 - [ ] **Assegna video a questa clip** aggiunga il video scelto come Take e lo selezioni
       (visibile nell'Inspector della clip, sezione Take Selector).

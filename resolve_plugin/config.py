@@ -71,6 +71,23 @@ class AnalysisConfig:
     min_shot_seconds_for_ai: float = 0.3
     scene_detect_threshold: float = 27.0  # PySceneDetect ContentDetector default-ish
 
+    # Voice/music separation (see analysis/speech.py). Uses Whisper for
+    # speech detection + transcription -- CPU-only, no GPU needed, and
+    # independent of the ai_backend used for the vision classifier above.
+    enable_speech_analysis: bool = os.environ.get("AUTO_TEMPLATE_ENABLE_SPEECH", "1") != "0"
+    # faster-whisper model size: tiny/base/small/medium/large-v3. "base" is a
+    # good accuracy/speed balance on CPU; multilingual, auto-detects language.
+    whisper_model_size: str = os.environ.get("AUTO_TEMPLATE_WHISPER_MODEL", "base")
+    # Voice segments separated by a gap shorter than this are merged into one
+    # continuous voice box instead of creating a sliver of "music" between them.
+    min_gap_to_split_voice_seconds: float = 0.6
+    # Heuristic-only "possible music change" flag: a sustained RMS loudness
+    # jump bigger than this (in dB) inside a music segment gets a marker for
+    # the user to review -- it is never auto-split, since reliable song-change
+    # detection needs real audio fingerprinting, not a loudness heuristic.
+    music_change_rms_jump_db: float = 10.0
+    music_change_min_segment_seconds: float = 3.0
+
 
 @dataclass
 class PluginConfig:

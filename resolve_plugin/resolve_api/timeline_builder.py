@@ -14,13 +14,23 @@ Design choices and why (see plan / README for the full rationale):
     here: it's a selectable, double-click-to-replace slot, which is exactly
     the CapCut-style "empty template slot" the user asked for.
 
-  * On-screen text is injected as a subtitle track via
-    `Timeline.ImportIntoTimeline(srt_path, {"insertAsSubtitle": True})`
-    rather than scripted Fusion Text+ nodes. Text+ has no direct "create a
-    title clip" call in the API (it requires building a Fusion node graph,
-    which is fragile and version-dependent); SRT import is a stable,
-    documented mechanism that gets exact timing right. The user can restyle
-    or convert individual entries to Text+ manually in Resolve afterwards.
+  * On-screen text (from ai_classifier/OCR) and spoken dialogue (from
+    speech.py, Whisper) are TWO INDEPENDENT subtitle tracks, built from two
+    independent Template fields (texts / dialogue) and two independent .srt
+    files. They are never merged into the same list or file. Each track is
+    renamed right after import (SetTrackName) so they're unmistakable in
+    Resolve: "Testo a schermo" vs "Dialogo (trascrizione)". SRT import is
+    used instead of scripted Fusion Text+ nodes because Text+ has no direct
+    "create a title clip" call in the API; SRT import is a stable,
+    documented mechanism that gets exact timing right.
+
+  * Voice/music separation (also from speech.py) produces two more audio
+    tracks, "Voce" and "Musica". Both are literal time-slices of the SAME
+    mixed source audio (mediaType=2 on the same MediaPoolItem used for
+    video) -- not true vocal isolation. Each track is filled contiguously
+    (real audio where it applies, a silent placeholder elsewhere) so a
+    simple sequential append reproduces correct absolute timing, the same
+    trick used for video gaps.
 
   * Effects/transitions detected by the AI (EffectNote) are NOT scriptable
     (no `AddTransition` in the API) -- they become timeline markers labeled
@@ -36,10 +46,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from resolve_plugin.analysis.template_schema import ClipSlot, Gap, Template
+from resolve_plugin.analysis.template_schema import (
+    ClipSlot,
+    Gap,
+    MusicSegment,
+    Template,
+    TextOverlay,
+    VoiceSegment,
+)
 from resolve_plugin.resolve_api.connection import ResolveHandles
 
 MARKER_COLOR = "Yellow"
+MEDIA_TYPE_AUDIO_ONLY = 2
+
+ON_SCREEN_TEXT_TRACK_NAME = "Testo a schermo"
+DIALOGUE_TRACK_NAME = "Dialogo (trascrizione)"
+VOICE_TRACK_NAME = "Voce"
+MUSIC_TRACK_NAME = "Musica"
 
 
 @dataclass
@@ -62,12 +85,10 @@ def _seconds_to_srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def _write_srt(template: Template, out_path: Path) -> bool:
+def _write_srt(overlays: list[TextOverlay], out_path: Path) -> bool:
     """Returns False (and writes nothing) if there's no text to inject."""
-    if not template.texts:
-        return False
     lines = []
-    for i, overlay in enumerate(template.texts, start=1):
+    for i, overlay in enumerate(overlays, start=1):
         if not overlay.content.strip():
             continue
         lines.append(str(i))
@@ -108,6 +129,36 @@ class _PlaceholderClipCache:
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if not out_path.exists():
             raise RuntimeError(f"Could not generate placeholder clip: {proc.stderr}")
+        self._by_duration_ceil[ceil_seconds] = out_path
+        return out_path, ceil_seconds
+
+
+class _SilentAudioPlaceholderCache:
+    """Generates (and reuses) silent audio files, used to fill the "Voce" and
+    "Musica" tracks contiguously wherever they don't have real content --
+    the same tiling trick _PlaceholderClipCache uses for video gaps."""
+
+    def __init__(self, work_dir: Path):
+        self.work_dir = work_dir
+        self._by_duration_ceil: dict[int, Path] = {}
+
+    def get_or_create(self, min_duration_seconds: float) -> tuple[Path, float]:
+        ceil_seconds = max(1, int(min_duration_seconds) + 1)
+        if ceil_seconds in self._by_duration_ceil:
+            return self._by_duration_ceil[ceil_seconds], ceil_seconds
+
+        out_path = self.work_dir / f"silence_{ceil_seconds}s.wav"
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi",
+            "-i", f"anullsrc=r=48000:cl=stereo",
+            "-t", str(ceil_seconds),
+            "-c:a", "pcm_s16le",
+            str(out_path),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if not out_path.exists():
+            raise RuntimeError(f"Could not generate silent placeholder audio: {proc.stderr}")
         self._by_duration_ceil[ceil_seconds] = out_path
         return out_path, ceil_seconds
 
@@ -176,7 +227,14 @@ def build_timeline(
             ])
 
     _add_effect_markers(timeline, template, fps)
-    _inject_text_track(timeline, template, work_dir)
+
+    # On-screen text and spoken dialogue are independent Template fields,
+    # independent .srt files, independent import calls and independently
+    # renamed tracks -- kept fully separate on purpose (see module docstring).
+    _inject_subtitle_track(timeline, template.texts, work_dir / "on_screen_text.srt", ON_SCREEN_TEXT_TRACK_NAME)
+    _inject_subtitle_track(timeline, template.dialogue, work_dir / "dialogue.srt", DIALOGUE_TRACK_NAME)
+
+    _inject_voice_music_tracks(timeline, media_pool, template, source_item, work_dir, fps)
 
     return BuildResult(timeline=timeline, clip_items=clip_items)
 
@@ -200,7 +258,93 @@ def _add_effect_markers(timeline: Any, template: Template, fps: float) -> None:
         )
 
 
-def _inject_text_track(timeline: Any, template: Template, work_dir: Path) -> None:
-    srt_path = work_dir / "detected_text.srt"
-    if _write_srt(template, srt_path):
-        timeline.ImportIntoTimeline(str(srt_path), {"insertAsSubtitle": True})
+def _inject_subtitle_track(timeline: Any, overlays: list[TextOverlay], srt_path: Path, track_name: str) -> None:
+    if not _write_srt(overlays, srt_path):
+        return
+    timeline.ImportIntoTimeline(str(srt_path), {"insertAsSubtitle": True})
+    new_track_index = timeline.GetTrackCount("subtitle")
+    if new_track_index > 0:
+        timeline.SetTrackName("subtitle", new_track_index, track_name)
+
+
+def _audio_timeline_items(template: Template) -> list[Union[VoiceSegment, MusicSegment]]:
+    items: list[Union[VoiceSegment, MusicSegment]] = [*template.voice_segments, *template.music_segments]
+    return sorted(items, key=lambda item: item.start_seconds)
+
+
+def _inject_voice_music_tracks(
+    timeline: Any,
+    media_pool: Any,
+    template: Template,
+    source_item: Any,
+    work_dir: Path,
+    fps: float,
+) -> None:
+    if not template.voice_segments and not template.music_segments:
+        return
+
+    silence_cache = _SilentAudioPlaceholderCache(work_dir)
+
+    timeline.AddTrack("audio")
+    voice_track_index = timeline.GetTrackCount("audio")
+    timeline.SetTrackName("audio", voice_track_index, VOICE_TRACK_NAME)
+
+    timeline.AddTrack("audio")
+    music_track_index = timeline.GetTrackCount("audio")
+    timeline.SetTrackName("audio", music_track_index, MUSIC_TRACK_NAME)
+
+    for item in _audio_timeline_items(template):
+        is_voice = isinstance(item, VoiceSegment)
+        duration = item.end_seconds - item.start_seconds
+        if duration <= 0:
+            continue
+
+        _append_audio_clip(
+            media_pool, source_item, item, fps, target_track_index=voice_track_index,
+            as_real_audio=is_voice, silence_cache=silence_cache, duration=duration,
+        )
+        _append_audio_clip(
+            media_pool, source_item, item, fps, target_track_index=music_track_index,
+            as_real_audio=not is_voice, silence_cache=silence_cache, duration=duration,
+        )
+
+
+def _append_audio_clip(
+    media_pool: Any,
+    source_item: Any,
+    item: Union[VoiceSegment, MusicSegment],
+    fps: float,
+    target_track_index: int,
+    as_real_audio: bool,
+    silence_cache: _SilentAudioPlaceholderCache,
+    duration: float,
+) -> None:
+    if as_real_audio:
+        start_frame = _seconds_to_frames(item.start_seconds, fps)
+        end_frame = max(start_frame, _seconds_to_frames(item.end_seconds, fps) - 1)
+        media_pool.AppendToTimeline([
+            {
+                "mediaPoolItem": source_item,
+                "startFrame": start_frame,
+                "endFrame": end_frame,
+                "mediaType": MEDIA_TYPE_AUDIO_ONLY,
+                "trackIndex": target_track_index,
+            }
+        ])
+    else:
+        placeholder_path, _ = silence_cache.get_or_create(duration)
+        placeholder_items = media_pool.ImportMedia([str(placeholder_path)])
+        if not placeholder_items:
+            return
+        # Silence clips are plain WAV audio; frame count here is still in
+        # terms of the *timeline's* fps, like every other append in this
+        # module -- Resolve places audio-only clips using timeline frames.
+        end_frame = max(0, _seconds_to_frames(duration, fps) - 1)
+        media_pool.AppendToTimeline([
+            {
+                "mediaPoolItem": placeholder_items[0],
+                "startFrame": 0,
+                "endFrame": end_frame,
+                "trackIndex": target_track_index,
+            }
+        ])

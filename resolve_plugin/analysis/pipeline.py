@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from resolve_plugin.analysis import scene_detect
+from resolve_plugin.analysis import scene_detect, speech
 from resolve_plugin.analysis.ai_classifier import VisionBackend, get_backend
 from resolve_plugin.analysis.frames import extract_frame, sample_timestamps_for_shot
 from resolve_plugin.analysis.ocr import detect_text
@@ -148,10 +148,25 @@ def analyze_video(
 
     template = Template(source_video_path=video_path, fps=fps, clips=clips, gaps=gaps)
 
+    if CONFIG.analysis.enable_speech_analysis:
+        report(30, 100, "Transcribing voice & separating music...")
+        try:
+            voice_segments, music_segments, dialogue, music_notes = speech.analyze_speech_and_music(
+                video_path, duration
+            )
+            template.voice_segments = voice_segments
+            template.music_segments = music_segments
+            template.dialogue = dialogue
+            template.effect_notes.extend(music_notes)
+        except RuntimeError as exc:
+            # Optional feature: missing faster-whisper (or a failed ffmpeg
+            # audio extraction) shouldn't abort the rest of the analysis.
+            report(30, 100, f"Voice/music analysis skipped: {exc}")
+
     total_clips = max(len(clips), 1)
     for i, clip in enumerate(clips):
         report(
-            30 + int(60 * i / total_clips),
+            40 + int(55 * i / total_clips),
             100,
             f"Analyzing clip {i + 1}/{len(clips)} (text & effects)...",
         )

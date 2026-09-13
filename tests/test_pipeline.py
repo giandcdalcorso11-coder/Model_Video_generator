@@ -4,7 +4,7 @@ from PIL import Image
 
 from resolve_plugin.analysis import pipeline, scene_detect
 from resolve_plugin.analysis.ai_classifier import FrameClassification, MockBackend
-from resolve_plugin.analysis.template_schema import ClipSlot, Gap
+from resolve_plugin.analysis.template_schema import ClipSlot, EffectNote, Gap, MusicSegment, TextOverlay, VoiceSegment
 
 
 def test_shots_and_gaps_splits_mostly_black_shots_into_gaps():
@@ -73,7 +73,7 @@ def test_classify_clip_collects_text_and_effect_notes(monkeypatch):
     assert all(n.label == "zoom blur" for n in notes)
 
 
-def test_analyze_video_end_to_end_with_mocks(monkeypatch):
+def _patch_common_video_analysis(monkeypatch):
     monkeypatch.setattr(
         pipeline.scene_detect, "probe_duration_and_fps", lambda path: (5.0, 30.0)
     )
@@ -87,6 +87,11 @@ def test_analyze_video_end_to_end_with_mocks(monkeypatch):
     )
     monkeypatch.setattr(pipeline, "extract_frame", lambda video_path, ts: _fake_frame())
     monkeypatch.setattr(pipeline, "detect_text", lambda frame: "")
+
+
+def test_analyze_video_end_to_end_with_mocks(monkeypatch):
+    _patch_common_video_analysis(monkeypatch)
+    monkeypatch.setattr(pipeline.CONFIG.analysis, "enable_speech_analysis", False)
 
     backend = MockBackend(canned=FrameClassification())
     progress_events = []
@@ -102,3 +107,54 @@ def test_analyze_video_end_to_end_with_mocks(monkeypatch):
     assert len(template.gaps) == 0
     assert progress_events[0][0] == 0
     assert progress_events[-1] == (100, 100, "Done.")
+
+
+def test_analyze_video_wires_in_voice_music_and_dialogue(monkeypatch):
+    _patch_common_video_analysis(monkeypatch)
+    monkeypatch.setattr(pipeline.CONFIG.analysis, "enable_speech_analysis", True)
+
+    voice_segments = [VoiceSegment(index=0, start_seconds=0.0, end_seconds=1.0, transcript="ciao")]
+    music_segments = [MusicSegment(index=0, start_seconds=1.0, end_seconds=5.0)]
+    dialogue = [TextOverlay(content="ciao", start_seconds=0.0, end_seconds=1.0)]
+    music_notes = [EffectNote(label="possibile cambio musica", at_seconds=3.0, source="heuristic")]
+
+    monkeypatch.setattr(
+        pipeline.speech,
+        "analyze_speech_and_music",
+        lambda video_path, duration: (voice_segments, music_segments, dialogue, music_notes),
+    )
+
+    backend = MockBackend(canned=FrameClassification())
+    template = pipeline.analyze_video("video.mp4", ai_backend=backend)
+
+    assert template.voice_segments == voice_segments
+    assert template.music_segments == music_segments
+    assert template.dialogue == dialogue
+    assert music_notes[0] in template.effect_notes
+    # On-screen text (from the vision backend/OCR) must stay untouched by
+    # the speech pipeline -- it's a separate field, populated separately.
+    assert all(overlay not in template.texts for overlay in dialogue)
+
+
+def test_analyze_video_degrades_gracefully_when_speech_analysis_unavailable(monkeypatch):
+    _patch_common_video_analysis(monkeypatch)
+    monkeypatch.setattr(pipeline.CONFIG.analysis, "enable_speech_analysis", True)
+
+    def raise_error(video_path, duration):
+        raise RuntimeError("faster-whisper non è installato.")
+
+    monkeypatch.setattr(pipeline.speech, "analyze_speech_and_music", raise_error)
+
+    backend = MockBackend(canned=FrameClassification())
+    progress_events = []
+
+    template = pipeline.analyze_video(
+        "video.mp4",
+        ai_backend=backend,
+        progress_callback=lambda step, total, msg: progress_events.append((step, total, msg)),
+    )
+
+    # The rest of the analysis still completes normally.
+    assert len(template.clips) == 2
+    assert template.voice_segments == []
+    assert any("skipped" in msg for _, _, msg in progress_events)

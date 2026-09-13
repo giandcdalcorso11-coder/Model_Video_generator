@@ -7,5 +7,9 @@ Pillow>=10.0             # image handling for frame sampling
 # AI vision backends (analysis/ai_classifier.py)
 requests>=2.31           # HTTP client used by both the Ollama and Gemini backends
 
+# Voice/music separation (analysis/speech.py)
+faster-whisper>=1.0      # local, free, CPU-friendly speech-to-text + voice activity detection
+numpy>=1.24              # RMS loudness analysis for the "possible music change" heuristic
+
 # Tests
 pytest>=8.0
