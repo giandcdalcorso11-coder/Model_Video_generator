@@ -33,8 +33,12 @@ python scripts/install.py
 
 Lo script di installazione copia il codice del plugin in una cartella privata
 (`%APPDATA%\AutoTemplatePlugin`) e crea un unico file lanciatore dentro la cartella
-Scripts di Resolve (`%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Utility`).
-Riavvia Resolve: troverai la voce **Workspace > Scripts > Utility > Auto Template**.
+Scripts di Resolve (`%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Edit`).
+Riavvia Resolve: troverai la voce **Workspace > Scripts > Edit > Auto Template**
+(in italiano: **Spazio lavoro > Script > Edit > Auto Template**). Nota: le versioni
+di Resolve più recenti (21+) hanno rimosso la categoria generica "Utility" a favore
+delle sole categorie legate alle pagine (Comp/Edit/Color/Deliver) — per questo lo
+script viene installato sotto "Edit".
 
 Assicurati che in Resolve, sotto **Preferences > System > General**, lo scripting
 sia abilitato (impostazione "External scripting using" — su Resolve Free gli script
@@ -69,7 +73,7 @@ serve una API key gratuita da [Google AI Studio](https://aistudio.google.com)):
 ## Come si usa
 
 1. Apri Resolve, apri o crea un progetto.
-2. **Workspace > Scripts > Utility > Auto Template**.
+2. **Workspace > Scripts > Edit > Auto Template** (in italiano: **Spazio lavoro > Script > Edit > Auto Template**).
 3. **Carica video...** → scegli il video sorgente. Il progetto viene salvato in
    `%USERPROFILE%\AutoTemplateProjects\<id>\` e l'analisi parte in background
    (stato mostrato in fondo alla finestra: rilevamento tagli → spazi vuoti →
@@ -152,7 +156,7 @@ un mock dell'API di Resolve — non richiedono Resolve né Ollama installati.
 Questa integrazione con l'app desktop non è testabile in modo automatico: dopo
 l'installazione, verifica a mano che:
 
-- [ ] La voce **Workspace > Scripts > Utility > Auto Template** appaia e apra la finestra.
+- [ ] La voce **Workspace > Scripts > Edit > Auto Template** appaia e apra la finestra.
 - [ ] **Carica video...** apra un file dialog e crei un progetto nella lista.
 - [ ] Lo stato di analisi avanzi (tagli → spazi vuoti → analisi per clip) fino a "Analisi completata".
 - [ ] **Costruisci timeline** crei davvero una nuova timeline nel progetto Resolve corrente.
