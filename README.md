@@ -10,11 +10,28 @@ Nessun cloud, nessun account: tutto locale sul tuo PC. L'analisi AI usa di defau
 un modello vision **locale e gratuito** (via [Ollama](https://ollama.com)), senza
 costi né limiti di richieste.
 
+## Architettura (perché Lua + Python)
+
+DaVinci Resolve **21.1** ha spostato l'esecuzione di script Python dal menu Scripts
+in esclusiva per Resolve **Studio**: sulla versione Free, i file `.py` non compaiono
+più affatto nel menu Script. Lo scripting **Lua** invece non è soggetto a questa
+restrizione, su nessuna delle due edizioni. Per questo il plugin è diviso in due parti:
+
+- **`lua/Auto Template.lua`** — l'unica cosa che vedi dentro Resolve. Chiede il video,
+  lancia l'analisi (vedi sotto) e costruisce la timeline usando l'API di scripting di
+  Resolve. Nessuna finestra grafica con lista progetti: essendo anche l'interfaccia
+  UIManager riservata a Resolve Studio, la selezione video avviene con la finestra di
+  scelta file standard di Resolve.
+- **`resolve_plugin/` (Python)** — tutta l'analisi AI (tagli, testi, voce/musica).
+  Non tocca mai l'API di Resolve, quindi non è soggetta alla restrizione: lo script
+  Lua lo lancia come processo esterno e legge il risultato (`template.json`).
+
+Funziona così sia su Resolve **Free** che **Studio**.
+
 ## Requisiti
 
 - Windows + DaVinci Resolve (Free o Studio).
-- Python 3.10+ installato e disponibile nel PATH (lo stesso interprete che configuri
-  in Resolve: Preferences > System > General > "Scripting").
+- Python 3.10+ installato e disponibile nel PATH.
 - [FFmpeg](https://ffmpeg.org/download.html) nel PATH (usato per rilevare tagli,
   spazi vuoti/silenzi e per generare le clip segnaposto dei gap).
 - [Ollama](https://ollama.com) installato, per l'analisi AI locale e gratuita
@@ -31,19 +48,14 @@ pip install -r requirements.txt
 python scripts/install.py
 ```
 
-Lo script di installazione copia il codice del plugin in una cartella privata
-(`%APPDATA%\AutoTemplatePlugin`) e crea un unico file lanciatore dentro la cartella
+Lo script di installazione copia il codice Python del plugin in una cartella privata
+(`%APPDATA%\AutoTemplatePlugin`) e installa **`Auto Template.lua`** dentro la cartella
 Scripts di Resolve (`%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Edit`).
 Riavvia Resolve: troverai la voce **Workspace > Scripts > Edit > Auto Template**
 (in italiano: **Spazio lavoro > Script > Edit > Auto Template**). Nota: le versioni
 di Resolve più recenti (21+) hanno rimosso la categoria generica "Utility" a favore
 delle sole categorie legate alle pagine (Comp/Edit/Color/Deliver) — per questo lo
 script viene installato sotto "Edit".
-
-Assicurati che in Resolve, sotto **Preferences > System > General**, lo scripting
-sia abilitato (impostazione "External scripting using" — su Resolve Free gli script
-funzionano comunque solo se lanciati dal menu Scripts di Resolve stesso, non da un
-terminale esterno: è esattamente così che questo plugin è pensato per funzionare).
 
 ## Configurare il backend AI
 
@@ -74,22 +86,25 @@ serve una API key gratuita da [Google AI Studio](https://aistudio.google.com)):
 
 1. Apri Resolve, apri o crea un progetto.
 2. **Workspace > Scripts > Edit > Auto Template** (in italiano: **Spazio lavoro > Script > Edit > Auto Template**).
-3. **Carica video...** → scegli il video sorgente. Il progetto viene salvato in
-   `%USERPROFILE%\AutoTemplateProjects\<id>\` e l'analisi parte in background
-   (stato mostrato in fondo alla finestra: rilevamento tagli → spazi vuoti →
-   analisi AI per clip).
-4. A fine analisi, seleziona il progetto e clicca **Costruisci timeline**: Resolve
-   crea una nuova timeline che replica tagli, spazi vuoti (come clip segnaposto
+3. Si apre la finestra di selezione file standard di Resolve: scegli il video da
+   analizzare. Il progetto viene salvato in `%USERPROFILE%\AutoTemplateProjects\<nome>_<data>\`.
+4. L'analisi parte subito (nessuna finestra di progresso: segui l'avanzamento nella
+   **Console** di Resolve — Workspace > Console / "Terminale" — dove lo script stampa
+   ogni fase: rilevamento tagli → spazi vuoti → voce/musica → analisi AI per clip).
+   Per un video sotto i 2 minuti aspettati da qualche decina di secondi a un paio di
+   minuti, in base a GPU/CPU.
+5. A fine analisi lo script costruisce **automaticamente** una nuova timeline nel
+   progetto Resolve corrente, che replica: tagli, spazi vuoti (come clip segnaposto
    nere), testi a schermo (tracca sottotitoli "Testo a schermo"), il parlato
    trascritto (tracca sottotitoli separata "Dialogo (trascrizione)"), voce e
    musica su due tracce audio dedicate ("Voce"/"Musica") e marker gialli dove è
    stato rilevato un effetto/transizione o un possibile cambio di canzone.
-5. Nella sezione **Sostituisci con i miei video**, seleziona una clip dalla lista e
-   **Assegna video a questa clip**: il tuo video viene aggiunto come "Take"
-   alternativo sullo stesso slot (durata, posizione ed effetti restano quelli del
-   template) e selezionato automaticamente.
 6. Esporta normalmente dalla pagina **Deliver** di Resolve — il rendering finale è
    sempre quello nativo di Resolve, il plugin non tocca l'export.
+
+> **Nota**: la sostituzione delle clip del template con i tuoi video (tramite le
+> Take di Resolve) era già implementata nella prima versione Python del plugin ma
+> non è ancora stata riportata nella versione Lua — vedi "Limiti noti" sotto.
 
 ## Separazione voce/musica e trascrizione (dialogo)
 
@@ -125,6 +140,11 @@ Limiti onesti da conoscere:
 
 ## Limiti noti
 
+- **La sostituzione clip con le Take non è ancora disponibile nella versione Lua.**
+  Era già implementata (vedi `resolve_plugin/resolve_api/takes_manager.py`) quando
+  il plugin lanciava Python direttamente da Resolve; con il passaggio obbligato a
+  Lua (per via della restrizione Studio-only di Resolve 21.1 su Python) questa parte
+  va riscritta in Lua — è il prossimo pezzo pianificato.
 - **Le transizioni non vengono riapplicate automaticamente**: l'API di scripting di
   Resolve non permette di aggiungere transizioni via codice. Compaiono come marker
   gialli sulla timeline con un'etichetta (es. "cross dissolve") da applicare a mano
@@ -133,10 +153,14 @@ Limiti onesti da conoscere:
   Text+ nativo — è il meccanismo di scripting più stabile per avere i tempi esatti. Puoi
   convertirli o restilizzarli manualmente in Text+ dopo la generazione.
 - **Zoom/pan/velocità**: lo schema del template (`TransformEffect`) supporta già
-  queste proprietà (`TimelineItem.SetProperty`), ma il rilevamento automatico di
-  questi effetti dal video sorgente non è ancora implementato nella pipeline di
-  analisi — al momento vengono rilevati solo testo ed etichette di stile/effetto
-  generiche. È un'estensione naturale per una versione successiva.
+  queste proprietà (`TimelineItem.SetProperty`, applicata anche dallo script Lua), ma
+  il rilevamento automatico di questi effetti dal video sorgente non è ancora
+  implementato nella pipeline di analisi — al momento vengono rilevati solo testo ed
+  etichette di stile/effetto generiche. È un'estensione naturale per una versione
+  successiva.
+- **Nessuna finestra con lista progetti**: l'interfaccia grafica UIManager di Resolve
+  è anch'essa riservata a Resolve Studio, quindi non è utilizzabile su Free. Ogni
+  progetto resta comunque salvato su disco in `%USERPROFILE%\AutoTemplateProjects\`.
 - Progetto pensato per un solo utente/una sola macchina: niente account, niente
   sincronizzazione multi-dispositivo.
 
@@ -148,22 +172,33 @@ pytest
 ```
 
 I test coprono la pipeline di analisi (rilevamento tagli/gap, classificazione AI,
-storage progetti) e la logica di traduzione template→Resolve (`resolve_api/`) con
-un mock dell'API di Resolve — non richiedono Resolve né Ollama installati.
+storage progetti), il wrapper da riga di comando (`analyze_cli.py`) e lo script di
+installazione — non richiedono Resolve né Ollama installati.
+
+Lo script `lua/Auto Template.lua` non è coperto da `pytest` (linguaggio diverso), ma
+ha un test dedicato che simula Resolve e Python con degli stub e verifica l'intera
+logica di costruzione della timeline:
+
+```bash
+lua5.1 tests/lua_smoke_test.lua   # oppure `lua`/`luajit`, a seconda di cosa hai
+```
+
+Una copia legacy della logica di traduzione template→Resolve in Python resta in
+`resolve_plugin/resolve_api/` (con relativi test) da quando il plugin lanciava
+Python direttamente da Resolve — non più usata dal flusso attuale (Lua), tenuta
+come riferimento/riserva in caso di aggiornamenti futuri di Resolve.
 
 ## Checklist di verifica manuale (da fare su Windows con Resolve)
 
-Questa integrazione con l'app desktop non è testabile in modo automatico: dopo
-l'installazione, verifica a mano che:
+Questa integrazione con l'app desktop non è testabile in modo completamente
+automatico: dopo l'installazione, verifica a mano che:
 
-- [ ] La voce **Workspace > Scripts > Edit > Auto Template** appaia e apra la finestra.
-- [ ] **Carica video...** apra un file dialog e crei un progetto nella lista.
-- [ ] Lo stato di analisi avanzi (tagli → spazi vuoti → analisi per clip) fino a "Analisi completata".
-- [ ] **Costruisci timeline** crei davvero una nuova timeline nel progetto Resolve corrente.
+- [ ] La voce **Workspace > Scripts > Edit > Auto Template** appaia nel menu.
+- [ ] Cliccandoci sopra si apra la finestra di selezione file di Resolve.
+- [ ] Dopo aver scelto un video, l'analisi parta (messaggi visibili nella Console di Resolve).
+- [ ] Al termine, Resolve crei automaticamente una nuova timeline nel progetto corrente.
 - [ ] I tagli sulla timeline generata corrispondano a quelli del video originale.
 - [ ] Gli spazi vuoti rilevati appaiano come clip nere segnaposto della giusta durata.
 - [ ] Se il video aveva testo a schermo, compaia una tracca sottotitoli "Testo a schermo" con i tempi giusti.
 - [ ] Se il video aveva parlato, compaiano due tracce audio "Voce"/"Musica" e una tracca sottotitoli "Dialogo (trascrizione)" separata da quella del testo a schermo.
 - [ ] Se il video aveva transizioni (o un cambio di canzone), compaiano marker gialli nei punti giusti.
-- [ ] **Assegna video a questa clip** aggiunga il video scelto come Take e lo selezioni
-      (visibile nell'Inspector della clip, sezione Take Selector).

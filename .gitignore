@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 resolve_plugin/user_config.json
+# Artifacts from running tests/lua_smoke_test.lua directly from repo root
+__PROJECTS_ROOT__*
