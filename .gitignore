@@ -4,3 +4,5 @@ __pycache__/
 resolve_plugin/user_config.json
 # Artifacts from running tests/lua_smoke_test.lua directly from repo root
 __PROJECTS_ROOT__*
+# Working notes for this session (personal details, not for the public repo)
+documento-sessione-*.md
