@@ -3,7 +3,10 @@
 Questo progetto è **completamente gratuito**: nessun costo, nessun abbonamento,
 nessun account da creare. Ogni strumento usato (Python, FFmpeg, Ollama) è
 gratuito, e tutta l'analisi gira in locale sul tuo PC — nessun dato viene
-inviato altrove.
+inviato altrove. Anche l'intelligenza artificiale che analizza il video
+**gira interamente in locale sul tuo PC** (tramite Ollama): non è un servizio
+online, non c'è nessun server esterno né sito web coinvolto, il tuo video
+non lascia mai il tuo computer.
 
 Domande, problemi o suggerimenti: **gdciateam@gmail.com**. Nonostante
 l'indirizzo contenga "ia", a rispondere alle email è una persona reale (io),
