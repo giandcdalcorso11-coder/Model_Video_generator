@@ -77,9 +77,12 @@ def install() -> None:
 
     LIB_INSTALL_DIR.mkdir(parents=True, exist_ok=True)
     dest_package_dir = LIB_INSTALL_DIR / "resolve_plugin"
-    if dest_package_dir.exists():
-        shutil.rmtree(dest_package_dir)
-    shutil.copytree(PACKAGE_SRC, dest_package_dir)
+    # Overwrite in place instead of rmtree()-ing first: deleting the old
+    # copy tends to hit PermissionError on Windows when antivirus real-time
+    # scanning has a file inside momentarily locked (observed in practice).
+    # dirs_exist_ok=True merges the new tree over the old one without ever
+    # needing to delete a directory.
+    shutil.copytree(PACKAGE_SRC, dest_package_dir, dirs_exist_ok=True)
     print(f"Copied plugin code to: {dest_package_dir}")
 
     run_build_path = LIB_INSTALL_DIR / "run_build.py"

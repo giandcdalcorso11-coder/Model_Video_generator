@@ -82,6 +82,23 @@ def test_install_removes_stale_edit_launchers_from_earlier_designs(install_modul
     assert not stale_lua.exists()
 
 
+def test_install_overwrites_existing_dest_without_deleting_it_first(install_module):
+    """Regression test: install() must not shutil.rmtree() the destination
+    package dir before recopying -- on Windows, real-time antivirus
+    scanning can transiently lock a file inside it, turning that rmtree
+    into a PermissionError (observed in practice)."""
+    install_module.install()
+    dest_package = install_module.LIB_INSTALL_DIR / "resolve_plugin"
+    stale_file = dest_package / "analysis" / "__pycache__" / "stale.pyc"
+    stale_file.parent.mkdir(parents=True, exist_ok=True)
+    stale_file.write_bytes(b"leftover bytecode")
+
+    install_module.install()  # must not raise, and must still refresh real files
+
+    assert (dest_package / "build_project.py").exists()
+    assert (dest_package / "lua_codegen.py").exists()
+
+
 def test_run_build_bootstrap_compiles_with_real_windows_paths(install_module):
     """Regression test: a Windows path like C:\\Users\\... contains the
     sequence \\U, which Python's non-raw string parser reads as the start
