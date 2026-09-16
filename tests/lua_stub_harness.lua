@@ -50,7 +50,7 @@ function mediaPool_mt:ImportMedia(paths)
 end
 function mediaPool_mt:AppendToTimeline(clipInfos)
   local info = clipInfos[1]
-  record("MediaPool:AppendToTimeline", info.startFrame, info.endFrame, info.mediaType, info.trackIndex)
+  record("MediaPool:AppendToTimeline", info.startFrame, info.endFrame, info.mediaType, info.trackIndex, info.recordFrame)
   return { setmetatable({}, timeline_item_mt) }
 end
 

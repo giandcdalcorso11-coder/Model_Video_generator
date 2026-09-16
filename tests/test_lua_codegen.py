@@ -95,6 +95,21 @@ def test_generate_lua_script_is_syntactically_plausible_and_complete(tmp_path):
     assert "ciao a tutti" in dialogue_srt
 
 
+def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_frame(tmp_path):
+    """Regression test: AppendToTimeline lands at the end of the whole
+    timeline's current duration regardless of trackIndex (confirmed on a
+    real Resolve install -- Voice/Music tracks ended up appended after the
+    video instead of aligned in time with it). Every voice/music append,
+    real or silence filler, must pin an explicit recordFrame so it lands at
+    the segment's actual absolute position instead."""
+    template = make_template()  # voice: 0.0-1.0s, music: 1.0-5.0s @ 25fps
+    with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
+        src = generate_lua_script(template, "TestTimeline", tmp_path)
+
+    assert src.count("recordFrame = 0") == 2  # voice clip + its music-track silence filler
+    assert src.count("recordFrame = 25") == 2  # music clip + its voice-track silence filler
+
+
 def test_generate_lua_script_applies_transforms(tmp_path):
     template = make_template(
         clips=[
@@ -171,6 +186,12 @@ def test_generated_script_runs_correctly_against_resolve_stub_with_sandbox_enfor
     assert "MediaPool:AppendToTimeline(0, 49" in output  # clip 0: 0-2s @ 25fps
     assert "MediaPool:AppendToTimeline(75, 124" in output  # clip 1: 3-5s @ 25fps
     assert "Timeline:AddMarker(50, Yellow, dissolve" in output
+
+    # Voice (0-1s) and music (1-5s) appends must carry an explicit recordFrame
+    # (last arg) so they land at their real timeline position instead of
+    # wherever AppendToTimeline's own end-of-timeline pointer happens to be.
+    assert "MediaPool:AppendToTimeline(0, 24, 2, 2, 0)" in output  # voice clip, recordFrame=0
+    assert "MediaPool:AppendToTimeline(25, 124, 2, 3, 25)" in output  # music clip, recordFrame=25
     assert "Timeline:SetTrackName(subtitle" in output
     assert "Voce" in output
     assert "Musica" in output

@@ -187,11 +187,21 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             real_track = "voiceTrackIndex" if is_voice else "musicTrackIndex"
             silent_track = "musicTrackIndex" if is_voice else "voiceTrackIndex"
 
+            # AppendToTimeline always lands at the end of the *whole* timeline's
+            # current duration, regardless of which track is targeted -- not at
+            # frame 0 of that (possibly still-empty) track. Since the Voice/Music
+            # tracks are built after the main video track already has content,
+            # every append here must pin its exact timeline position explicitly
+            # via recordFrame, or it ends up appended after the video instead of
+            # aligned in time with it (observed on a real Resolve install).
+            record_frame = seconds_to_frames(segment.start_seconds, fps)
+
             start_frame = seconds_to_frames(segment.start_seconds, fps)
             end_frame = max(start_frame, seconds_to_frames(segment.end_seconds, fps) - 1)
             emit(
                 "mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
-                f"startFrame = {start_frame}, endFrame = {end_frame}, mediaType = 2, trackIndex = {real_track} }} }})"
+                f"startFrame = {start_frame}, endFrame = {end_frame}, mediaType = 2, "
+                f"trackIndex = {real_track}, recordFrame = {record_frame} }} }})"
             )
 
             silence_path, _ = silence_cache.get_or_create(duration)
@@ -200,7 +210,7 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             emit("if silenceItems and silenceItems[1] then")
             emit(
                 "  mediaPool:AppendToTimeline({ { mediaPoolItem = silenceItems[1], startFrame = 0, "
-                f"endFrame = {silence_end_frame}, trackIndex = {silent_track} }} }})"
+                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, recordFrame = {record_frame} }} }})"
             )
             emit("end")
             emit("")
