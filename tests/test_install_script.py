@@ -80,3 +80,19 @@ def test_install_removes_stale_edit_launchers_from_earlier_designs(install_modul
 
     assert not stale_py.exists()
     assert not stale_lua.exists()
+
+
+def test_run_build_bootstrap_compiles_with_real_windows_paths(install_module):
+    """Regression test: a Windows path like C:\\Users\\... contains the
+    sequence \\U, which Python's non-raw string parser reads as the start
+    of an 8-hex-digit \\UXXXXXXXX unicode escape and fails on. The generated
+    run_build.py bootstrap must stay valid regardless of what real Windows
+    usernames/paths land inside it."""
+    windows_lib_dir = r"C:\Users\giand\AppData\Roaming\AutoTemplatePlugin"
+    windows_run_build_path = windows_lib_dir + r"\run_build.py"
+
+    content = install_module.RUN_BUILD_TEMPLATE.format(
+        lib_dir=windows_lib_dir, run_build_path=windows_run_build_path
+    )
+
+    compile(content, "run_build.py", "exec")  # raises SyntaxError if broken
