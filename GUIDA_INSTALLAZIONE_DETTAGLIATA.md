@@ -40,7 +40,8 @@ Ollama e il modello AI, che pesano alcuni GB).
 7. [Come copiare un percorso di file senza sbagliare](#7-come-copiare-un-percorso-di-file-senza-sbagliare)
 8. [Analizzare un video](#8-analizzare-un-video)
 9. [Costruire la timeline in Resolve](#9-costruire-la-timeline-in-resolve)
-10. [Problemi comuni](#problemi-comuni)
+10. [Sostituire una clip del template con un tuo video](#10-sostituire-una-clip-del-template-con-un-tuo-video)
+11. [Problemi comuni](#problemi-comuni)
 
 ---
 
@@ -367,6 +368,45 @@ non serve che sia dentro la cartella del progetto per questo comando):
 4. ✅ Dopo pochi secondi, Resolve crea automaticamente una nuova timeline nel
    progetto corrente con tagli, testi, tracce audio voce/musica e marker
    gialli sugli effetti — vedi la checklist completa nel [README](README.md#checklist-di-verifica-manuale-da-fare-su-windows-con-resolve).
+
+---
+
+## 10. Sostituire una clip del template con un tuo video
+
+A questo punto hai una timeline con la **struttura** del video analizzato
+(tagli, ritmo, testi, effetti segnalati) ma con le clip **originali** di quel
+video. Il passo finale è sostituire quelle clip con i tuoi video, mantenendo
+intatte durata, posizione ed effetti già applicati — in Resolve questo si fa
+con il **Replace Edit** (non serve nessun comando del plugin, è una funzione
+nativa di Resolve).
+
+1. **Porta il tuo video nella Media Pool**: trascina il file dal tuo PC dentro
+   il pannello "Master" in alto a sinistra (o clic destro nel pannello >
+   "Aggiungi file multimediale...").
+2. **Seleziona la tua clip** nella Media Pool cliccandoci sopra una volta.
+   Se vuoi che inizi da un punto preciso del tuo video (non dall'inizio),
+   aprila nel visore a sinistra e imposta un punto di ingresso premendo **I**
+   sul fotogramma desiderato.
+3. **Sposta la playhead** (la lineetta verticale rossa) sulla timeline, sopra
+   la clip del template che vuoi sostituire — un click sulla riga del
+   timecode, in corrispondenza di quella clip, basta.
+4. **Clicca la clip da sostituire** nella timeline per selezionarla.
+5. Premi **F11** (Replace Edit). La clip del template viene sostituita dal
+   tuo video, mantenendo esattamente la stessa durata e gli stessi eventuali
+   effetti/colorazione già impostati su quella posizione.
+
+   📸 *Screenshot: timeline con una clip appena sostituita tramite Replace Edit.*
+
+⚠️ Metodo alternativo col mouse, se preferisci: trascina la tua clip dalla
+Media Pool **sopra** la clip nella timeline tenendo premuto **Alt** (Windows)
+prima di rilasciare — anche questo la sostituisce mantenendo la durata
+originale.
+
+✅ Verifica sempre riproducendo il tratto appena sostituito, per controllare
+che l'inquadratura sia quella desiderata.
+
+Ripeti questi passi per ogni clip del template che vuoi sostituire con un tuo
+video.
 
 ---
 
