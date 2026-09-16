@@ -1,5 +1,14 @@
 # Guida completa all'installazione e all'uso
 
+Questo progetto è **completamente gratuito**: nessun costo, nessun abbonamento,
+nessun account da creare. Ogni strumento usato (Python, FFmpeg, Ollama) è
+gratuito, e tutta l'analisi gira in locale sul tuo PC — nessun dato viene
+inviato altrove.
+
+Domande, problemi o suggerimenti: **gdciateam@gmail.com**. Nonostante
+l'indirizzo contenga "ia", a rispondere alle email è una persona reale (io),
+non un'intelligenza artificiale generica.
+
 Questa guida presuppone **zero esperienza** con terminale, Git o script. Ogni
 passo dice esattamente dove cliccare. Se qualcosa non corrisponde a quello che
 vedi tu, fermati e controlla la sezione [Problemi comuni](#problemi-comuni) in
