@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 import time
 from dataclasses import dataclass
 from typing import Optional, Protocol
@@ -110,7 +111,11 @@ class OllamaBackend:
             ) from exc
 
         raw_text = resp.json().get("response", "")
-        return _parse_response_text(raw_text)
+        result = _parse_response_text(raw_text)
+        if os.environ.get("AUTO_TEMPLATE_DEBUG_VISION"):
+            print(f"[debug-vision] raw Ollama response: {raw_text!r}")
+            print(f"[debug-vision] parsed -> text={result.text!r} effect_style={result.effect_style!r}")
+        return result
 
 
 class GeminiBackend:
