@@ -222,12 +222,48 @@ comando `git pull`).
 
 ## 5. Aprire un terminale nella cartella giusta
 
-Questo è il trucco che evita quasi tutti gli errori di percorso: **non aprire
-PowerShell da solo e poi scrivere `cd`** — apri il terminale *già dentro* la
-cartella giusta, direttamente da Esplora File.
+Esistono due modi. Usa quello che preferisci, ma **usa sempre lo stesso**,
+così non ti confondi.
 
-1. Apri Esplora File e naviga fino a dentro la cartella `AutoTemplate` (quella
-   che contiene i file `README.md`, `requirements.txt`, ecc. — non la
+### Metodo A — dal menu Start (il più semplice da ricordare)
+
+1. Premi il tasto **Windows** sulla tastiera (non serve cliccare prima da
+   nessuna parte).
+2. Scrivi semplicemente: `powershell`
+
+   📸 *Screenshot: menu Start con "powershell" scritto e il risultato
+   "Windows PowerShell" evidenziato.*
+
+3. Premi **Invio** (o clicca sul risultato "Windows PowerShell"). Si apre una
+   finestra blu/nera — è il terminale, vuoto e pronto.
+4. ⚠️ **A questo punto la finestra NON è nella cartella del progetto** — devi
+   spostartici tu con il comando `cd` (change directory), incollando il
+   percorso della tua cartella `AutoTemplate` **tra virgolette**:
+   ```powershell
+   cd "C:\percorso\della\tua\cartella\AutoTemplate"
+   ```
+   Ogni persona ha questo percorso diverso, in base a dove ha estratto/clonato
+   il progetto al [passo 4](#4-scaricare-il-progetto-da-github). Se non sei
+   sicuro del percorso esatto, apri quella cartella in Esplora File, clicca
+   sulla barra dell'indirizzo in alto (si seleziona tutto il percorso scritto
+   lì), copialo (Ctrl+C), poi incollalo (Ctrl+V) tra le virgolette del comando
+   `cd` sopra.
+
+   📸 *Screenshot: Esplora File con la barra dell'indirizzo selezionata,
+   che mostra il percorso della cartella AutoTemplate.*
+
+5. ✅ Premi Invio: se non vedi errori, la riga del prompt ora finisce con il
+   nome della cartella, es. `...\AutoTemplate>` — sei nel posto giusto. Da
+   qui puoi eseguire `git pull`, `python scripts/install.py`, ecc.
+
+   ⚠️ Errore tipico: `Impossibile trovare il percorso...` → il percorso
+   incollato non è esatto (manca una parte, o c'è un carattere in più/in
+   meno). Ricontrolla copiandolo di nuovo dalla barra degli indirizzi.
+
+### Metodo B — direttamente da Esplora File (evita di scrivere `cd`)
+
+1. Apri Esplora File e naviga fino a **dentro** la cartella `AutoTemplate`
+   (quella che contiene i file `README.md`, `requirements.txt`, ecc. — non la
    cartella che la contiene).
 2. Fai clic con il **tasto destro** su uno spazio vuoto dentro la cartella
    (non su un file).
@@ -239,12 +275,12 @@ cartella giusta, direttamente da Esplora File.
    📸 *Screenshot: menu tasto destro dentro la cartella AutoTemplate, con
    "Apri nel Terminale" evidenziato.*
 
-4. ✅ Si apre PowerShell già posizionato nella cartella giusta — la riga di
-   comando mostra il percorso della cartella `AutoTemplate` senza che tu
-   abbia dovuto scrivere nulla.
+4. ✅ Si apre PowerShell già posizionato nella cartella giusta — **non serve
+   scrivere `cd`**, la riga di comando mostra già il percorso della cartella
+   `AutoTemplate`.
 
 Da qui in avanti, ogni volta che questa guida dice "apri un terminale nella
-cartella del progetto", ripeti questo passo.
+cartella del progetto", ripeti il metodo che preferisci (A o B).
 
 ---
 
