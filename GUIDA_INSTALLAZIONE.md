@@ -1,0 +1,314 @@
+# Guida completa all'installazione e all'uso
+
+Questa guida presuppone **zero esperienza** con terminale, Git o script. Ogni
+passo dice esattamente dove cliccare. Se qualcosa non corrisponde a quello che
+vedi tu, fermati e controlla la sezione [Problemi comuni](#problemi-comuni) in
+fondo prima di andare avanti.
+
+Legenda usata in questa guida:
+
+- ✅ — cosa dovresti vedere se il passo è andato bene.
+- ⚠️ — un errore facile da fare in quel punto specifico.
+- 📸 — qui andrà uno screenshot (li aggiungiamo progressivamente).
+
+Tempo richiesto: 20-30 minuti la prima volta (soprattutto per scaricare
+Ollama e il modello AI, che pesano alcuni GB).
+
+---
+
+## Indice
+
+1. [Installare Python](#1-installare-python)
+2. [Installare FFmpeg](#2-installare-ffmpeg)
+3. [Installare Ollama e il modello AI](#3-installare-ollama-e-il-modello-ai)
+4. [Scaricare il progetto da GitHub](#4-scaricare-il-progetto-da-github)
+5. [Aprire un terminale nella cartella giusta](#5-aprire-un-terminale-nella-cartella-giusta)
+6. [Installare il plugin](#6-installare-il-plugin)
+7. [Come copiare un percorso di file senza sbagliare](#7-come-copiare-un-percorso-di-file-senza-sbagliare)
+8. [Analizzare un video](#8-analizzare-un-video)
+9. [Costruire la timeline in Resolve](#9-costruire-la-timeline-in-resolve)
+10. [Problemi comuni](#problemi-comuni)
+
+---
+
+## 1. Installare Python
+
+1. Vai su **https://www.python.org/downloads/** e clicca il pulsante grande
+   giallo "Download Python 3.x.x".
+2. Apri il file scaricato (`python-3.x.x-amd64.exe`).
+3. ⚠️ **Passo più importante di tutta questa sezione**: nella prima schermata
+   dell'installer, in basso, c'è una casella **"Add python.exe to PATH"**
+   (o "Aggiungi python.exe al PATH"). **Deve essere spuntata** prima di
+   cliccare "Install Now" — se non la spunti, i comandi `python` scritti più
+   avanti in questa guida non funzioneranno e dovrai reinstallare da capo.
+
+   📸 *Screenshot: prima schermata dell'installer Python con la casella "Add
+   python.exe to PATH" evidenziata.*
+
+4. Clicca "Install Now" e aspetta che finisca.
+5. ✅ Verifica: apri un terminale (vedi [sezione 5](#5-aprire-un-terminale-nella-cartella-giusta)
+   se non sai come) e scrivi:
+   ```powershell
+   python --version
+   ```
+   Dovresti vedere qualcosa come `Python 3.12.x`. Se invece vedi un errore
+   tipo "python non è riconosciuto come comando", la casella del PATH non è
+   stata spuntata: reinstalla Python ripetendo questo passo.
+
+---
+
+## 2. Installare FFmpeg
+
+FFmpeg su Windows **non ha un installer**: si scarica una cartella già pronta
+e va "collegata" manualmente al sistema. È il passo più macchinoso di tutta
+la guida, ma va fatto una sola volta.
+
+1. Vai su **https://www.gyan.dev/ffmpeg/builds/** (sito di riferimento per le
+   build Windows di FFmpeg).
+2. Cerca la sezione "release builds" e scarica lo **`ffmpeg-release-essentials.zip`**.
+3. Estrai lo zip. Dentro trovi una cartella con un nome lungo tipo
+   `ffmpeg-7.x-essentials_build`.
+4. **Sposta** (non copiare: sposta) quella cartella direttamente dentro `C:\`,
+   e rinominala semplicemente in `ffmpeg`. Alla fine deve esistere il percorso
+   `C:\ffmpeg\bin\ffmpeg.exe`.
+
+   📸 *Screenshot: Esplora File con la cartella `C:\ffmpeg\bin` aperta, che
+   mostra `ffmpeg.exe` dentro.*
+
+5. Ora aggiungi `C:\ffmpeg\bin` al **PATH** di Windows:
+   - Premi il tasto Windows, scrivi **"variabili di ambiente"** e apri
+     "Modifica le variabili di ambiente relative al sistema".
+   - Clicca il pulsante **"Variabili d'ambiente..."** in basso.
+   - Nel riquadro superiore ("Variabili utente"), seleziona la riga **Path** e
+     clicca **Modifica...**.
+   - Clicca **Nuovo** e scrivi esattamente: `C:\ffmpeg\bin`
+   - Clicca OK su tutte le finestre aperte (tre volte).
+
+   📸 *Screenshot: finestra "Modifica variabile di ambiente" con
+   `C:\ffmpeg\bin` appena aggiunto alla lista.*
+
+6. ⚠️ **Chiudi e riapri PowerShell** (le finestre già aperte non vedono il
+   PATH aggiornato).
+7. ✅ Verifica:
+   ```powershell
+   ffmpeg -version
+   ```
+   Dovresti vedere alcune righe di informazioni sulla versione. Se vedi
+   "ffmpeg non è riconosciuto", controlla che il percorso in `Path` sia
+   scritto esattamente `C:\ffmpeg\bin` (non `C:\ffmpeg` da solo, non con uno
+   spazio in più).
+
+---
+
+## 3. Installare Ollama e il modello AI
+
+1. Vai su **https://ollama.com/download** e scarica la versione Windows.
+2. Apri l'installer e segui i passi (non serve creare un account per l'uso
+   locale da riga di comando — se il sito ti propone di registrarti, puoi
+   saltare).
+3. ✅ Verifica, in un **nuovo** terminale:
+   ```powershell
+   ollama --version
+   ```
+4. Scarica il modello AI usato per l'analisi (circa 5 GB, richiede qualche
+   minuto):
+   ```powershell
+   ollama pull qwen2.5vl
+   ```
+   📸 *Screenshot: terminale con il download di `qwen2.5vl` completato al 100%.*
+
+   ⚠️ Se il tuo PC ha una scheda video con poca memoria dedicata (meno di 6
+   GB) o solo grafica integrata, puoi usare un modello più leggero — vedi la
+   sezione "Configurare il backend AI" nel [README](README.md).
+
+---
+
+## 4. Scaricare il progetto da GitHub
+
+Due modi — scegli quello più comodo per te.
+
+### Opzione A — Download diretto (più semplice, consigliata se non conosci Git)
+
+1. Vai sulla pagina del repository su GitHub.
+2. Clicca il pulsante verde **"Code"**, poi **"Download ZIP"**.
+
+   📸 *Screenshot: pulsante "Code" aperto con l'opzione "Download ZIP" evidenziata.*
+
+3. Estrai lo zip scaricato in una posizione stabile del tuo PC — per esempio
+   `Documenti\AutoTemplate`. Evita il Desktop se hai OneDrive attivo sul
+   Desktop: può rallentare o interferire con alcune operazioni (l'abbiamo
+   visto succedere durante lo sviluppo).
+
+⚠️ Con questa opzione, per ricevere gli aggiornamenti futuri del plugin dovrai
+riscaricare lo zip e sostituire la cartella a mano (con l'opzione B basta un
+comando `git pull`).
+
+### Opzione B — Git (consigliata se prevedi di aggiornare spesso)
+
+1. Installa Git da **https://git-scm.com/download/win** (installer standard,
+   next-next-next va bene).
+2. Apri un terminale nella cartella dove vuoi salvare il progetto (vedi
+   [sezione 5](#5-aprire-un-terminale-nella-cartella-giusta)) ed esegui:
+   ```powershell
+   git clone https://github.com/<utente>/<repo>.git AutoTemplate
+   ```
+   (sostituisci l'URL con quello reale del repository).
+
+---
+
+## 5. Aprire un terminale nella cartella giusta
+
+Questo è il trucco che evita quasi tutti gli errori di percorso: **non aprire
+PowerShell da solo e poi scrivere `cd`** — apri il terminale *già dentro* la
+cartella giusta, direttamente da Esplora File.
+
+1. Apri Esplora File e naviga fino a dentro la cartella `AutoTemplate` (quella
+   che contiene i file `README.md`, `requirements.txt`, ecc. — non la
+   cartella che la contiene).
+2. Fai clic con il **tasto destro** su uno spazio vuoto dentro la cartella
+   (non su un file).
+3. Nel menu che appare:
+   - Windows 11: clicca **"Apri nel Terminale"**.
+   - Windows 10: tieni premuto **Shift** mentre fai clic destro, poi scegli
+     **"Apri finestra di PowerShell qui"**.
+
+   📸 *Screenshot: menu tasto destro dentro la cartella AutoTemplate, con
+   "Apri nel Terminale" evidenziato.*
+
+4. ✅ Si apre PowerShell già posizionato nella cartella giusta — la riga di
+   comando mostra il percorso della cartella `AutoTemplate` senza che tu
+   abbia dovuto scrivere nulla.
+
+Da qui in avanti, ogni volta che questa guida dice "apri un terminale nella
+cartella del progetto", ripeti questo passo.
+
+---
+
+## 6. Installare il plugin
+
+Nel terminale aperto al passo precedente:
+
+```powershell
+pip install -r requirements.txt
+python scripts/install.py
+```
+
+✅ Il secondo comando, alla fine, stampa un messaggio che inizia con "Done."
+e mostra un comando `python "...\run_build.py" "..."` — **tienilo a portata
+di mano**, ti servirà al passo 8. Non serve copiarlo ora: potrai sempre
+rilanciare `python scripts/install.py` per rivederlo.
+
+---
+
+## 7. Come copiare un percorso di file senza sbagliare
+
+I percorsi Windows (es. `C:\Users\mario\Desktop\il mio video.mp4`) sono
+scomodi da scrivere a mano: bastano uno spazio dimenticato o una virgoletta
+mancante per bloccare tutto. Non scriverli mai a mano — fai così:
+
+1. In Esplora File, trova il file che ti serve (es. il tuo video).
+2. Tieni premuto **Shift** e fai clic con il **tasto destro** sul file.
+3. Scegli **"Copia come percorso"** (in inglese "Copy as path").
+
+   📸 *Screenshot: menu tasto destro su un file video con "Copia come
+   percorso" evidenziato.*
+
+4. Il percorso è ora copiato **già tra virgolette**, pronto per essere
+   incollato dentro un comando, esattamente dove questa guida scrive
+   `"C:\percorso\del\tuo\video.mp4"`.
+
+⚠️ In Windows 11 questa voce potrebbe essere nascosta dentro **"Mostra altre
+opzioni"** (l'icona con i tre puntini) del menu tasto destro.
+
+---
+
+## 8. Analizzare un video
+
+Nel terminale (aperto come al [passo 5](#5-aprire-un-terminale-nella-cartella-giusta),
+non serve che sia dentro la cartella del progetto per questo comando):
+
+1. Apri DaVinci Resolve e crea/apri un progetto — **deve restare aperto**,
+   ti servirà al passo successivo.
+2. Copia il percorso del tuo video come spiegato al
+   [passo 7](#7-come-copiare-un-percorso-di-file-senza-sbagliare).
+3. Scrivi il comando che `install.py` ti ha mostrato, incollando il percorso
+   del video al posto giusto:
+   ```powershell
+   python "C:\Users\<tuo-utente>\AppData\Roaming\AutoTemplatePlugin\run_build.py" "C:\percorso\del\tuo\video.mp4"
+   ```
+4. ✅ Vedrai una serie di righe di avanzamento tipo:
+   ```
+   [0/100] Reading video metadata...
+   [5/100] Detecting cuts...
+   [20/100] Detecting empty/black spaces...
+   [30/100] Transcribing voice & separating music...
+   [40/100] Analyzing clip 1/28 (text & effects)...
+   ```
+   Per un video sotto i 2 minuti, aspettati da una decina di secondi fino a
+   qualche minuto, soprattutto durante la fase "Analyzing clip" (usa l'AI
+   locale, la parte più lenta). **Non chiudere la finestra** finché non vedi
+   il messaggio finale "Fatto! ...".
+
+   📸 *Screenshot: terminale a fine analisi, con il messaggio "Fatto! In
+   Resolve vai su Workspace > Scripts > Edit > ..." visibile.*
+
+---
+
+## 9. Costruire la timeline in Resolve
+
+1. In DaVinci Resolve, in alto, vai su **Workspace > Scripts > Edit** (in
+   italiano: **Spazio lavoro > Script > Edit**).
+2. Se non vedi subito la voce nuova, chiudi il menu e riaprilo.
+3. Clicca sulla voce che inizia con **"Auto Template - ..."**.
+
+   📸 *Screenshot: menu Workspace > Scripts > Edit con la voce "Auto
+   Template - ..." visibile ed evidenziata.*
+
+4. ✅ Dopo pochi secondi, Resolve crea automaticamente una nuova timeline nel
+   progetto corrente con tagli, testi, tracce audio voce/musica e marker
+   gialli sugli effetti — vedi la checklist completa nel [README](README.md#checklist-di-verifica-manuale-da-fare-su-windows-con-resolve).
+
+---
+
+## Problemi comuni
+
+**`git pull` chiede "Should I try again? (y/n)" per una cartella che non
+riesce a cancellare.**
+Qualcosa ha quella cartella "in uso" (Esplora File aperto su di essa, o
+OneDrive che sta ancora sincronizzando). Chiudi ogni finestra che la
+riguarda, poi rispondi `y`. Se continua a fallire, rispondi `n` e poi esegui
+`git pull` di nuovo — di solito la seconda volta funziona.
+
+**Il terminale sembra "bloccato" dopo aver scritto un comando.**
+Controlla di aver premuto **Invio** — a volte il comando resta scritto ma
+non è stato lanciato. Se hai premuto Invio e non succede nulla per più di un
+minuto, apri Task Manager (Ctrl+Shift+Esc), cerca **python** nella barra di
+ricerca in alto: se vedi un processo attivo, sta ancora lavorando, aspetta.
+
+**Errore "python non è riconosciuto come comando" (o lo stesso per `ffmpeg`,
+`ollama`, `git`).**
+Il programma non è nel PATH di Windows, oppure hai aperto il terminale prima
+di installarlo. Chiudi **tutte** le finestre PowerShell aperte, aprine una
+nuova e riprova. Se persiste, rivedi il passo di installazione del programma
+in questione (in particolare per Python, controlla la casella "Add to PATH").
+
+**Errore Python `PermissionError: Accesso negato` durante
+`python scripts/install.py`.**
+Di solito è l'antivirus che sta scansionando i file appena copiati. Aspetta
+qualche secondo e rilancia lo stesso comando: di norma la seconda volta va a
+buon fine.
+
+**Workspace > Scripts > Edit non mostra nessuna voce "Auto Template - ...".**
+- Controlla che il comando `run_build.py` sia arrivato fino in fondo,
+  stampando il messaggio "Fatto! ...".
+- Chiudi il menu Script e riaprilo (Resolve a volte non aggiorna
+  immediatamente la lista).
+- Verifica di avere DaVinci Resolve aggiornato all'ultima versione — versioni
+  molto vecchie potrebbero non avere la categoria "Edit" nel menu Script.
+
+**In Resolve, dopo aver lanciato lo script, non succede visibilmente nulla.**
+Controlla che ci sia un progetto Resolve aperto (non solo la schermata
+iniziale "Project Manager") prima di lanciare lo script.
+
+Per limiti noti non risolvibili (es. le transizioni non si riapplicano da
+sole) vedi la sezione "Limiti noti" nel [README](README.md#limiti-noti).
