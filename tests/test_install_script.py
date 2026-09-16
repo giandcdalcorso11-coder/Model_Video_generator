@@ -1,5 +1,4 @@
 import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
@@ -32,38 +31,32 @@ def install_module(tmp_path, monkeypatch):
     return module
 
 
-def test_lua_string_literal_escapes_backslashes_and_quotes(install_module):
-    assert install_module._lua_string_literal(r"C:\Users\giand\App") == r"C:\\Users\\giand\\App"
-    assert install_module._lua_string_literal('say "hi"') == 'say \\"hi\\"'
-
-
-def test_install_copies_package_and_writes_bootstrap(install_module, tmp_path):
+def test_install_copies_package_and_writes_build_bootstrap(install_module):
     install_module.install()
 
     dest_package = install_module.LIB_INSTALL_DIR / "resolve_plugin"
     assert dest_package.is_dir()
-    assert (dest_package / "analyze_cli.py").exists()
+    assert (dest_package / "build_project.py").exists()
+    assert (dest_package / "lua_codegen.py").exists()
 
-    run_analysis = install_module.LIB_INSTALL_DIR / "run_analysis.py"
-    assert run_analysis.exists()
-    content = run_analysis.read_text(encoding="utf-8")
-    assert "from resolve_plugin.analyze_cli import main" in content
+    run_build = install_module.LIB_INSTALL_DIR / "run_build.py"
+    assert run_build.exists()
+    content = run_build.read_text(encoding="utf-8")
+    assert "from resolve_plugin.build_project import main" in content
     assert str(install_module.LIB_INSTALL_DIR) in content
 
     assert install_module.PROJECTS_ROOT.is_dir()
 
 
-def test_install_writes_lua_launcher_with_placeholders_substituted(install_module):
+def test_install_does_not_write_any_scripts_menu_launcher(install_module):
+    """The new architecture has no static Resolve-facing script at all --
+    each analyzed video gets its own generated .lua file, written later by
+    build_project.py, not by install.py."""
     install_module.install()
 
-    lua_path = install_module.SCRIPTS_EDIT_DIR / "Auto Template.lua"
-    assert lua_path.exists()
-    content = lua_path.read_text(encoding="utf-8")
-
-    assert "__PYTHON_EXE__" not in content
-    assert "__LIB_DIR__" not in content
-    assert "__PROJECTS_ROOT__" not in content
-    assert 'PYTHON_EXE = "python"' in content
+    if install_module.SCRIPTS_EDIT_DIR.exists():
+        assert list(install_module.SCRIPTS_EDIT_DIR.glob("*.lua")) == []
+        assert list(install_module.SCRIPTS_EDIT_DIR.glob("*.py")) == []
 
 
 def test_install_removes_stale_legacy_python_launcher(install_module):
@@ -74,3 +67,16 @@ def test_install_removes_stale_legacy_python_launcher(install_module):
     install_module.install()
 
     assert not stale_file.exists()
+
+
+def test_install_removes_stale_edit_launchers_from_earlier_designs(install_module):
+    install_module.SCRIPTS_EDIT_DIR.mkdir(parents=True, exist_ok=True)
+    stale_py = install_module.SCRIPTS_EDIT_DIR / "Auto Template.py"
+    stale_py.write_text("# old python launcher", encoding="utf-8")
+    stale_lua = install_module.SCRIPTS_EDIT_DIR / "Auto Template.lua"
+    stale_lua.write_text("-- old static lua launcher", encoding="utf-8")
+
+    install_module.install()
+
+    assert not stale_py.exists()
+    assert not stale_lua.exists()

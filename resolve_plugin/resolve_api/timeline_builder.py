@@ -40,7 +40,6 @@ Design choices and why (see plan / README for the full rationale):
 """
 from __future__ import annotations
 
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +52,12 @@ from resolve_plugin.analysis.template_schema import (
     Template,
     TextOverlay,
     VoiceSegment,
+)
+from resolve_plugin.media_prep import (
+    PlaceholderClipCache as _PlaceholderClipCache,
+    SilentAudioPlaceholderCache as _SilentAudioPlaceholderCache,
+    seconds_to_frames as _seconds_to_frames,
+    write_srt as _write_srt,
 )
 from resolve_plugin.resolve_api.connection import ResolveHandles
 
@@ -71,96 +76,6 @@ class BuildResult:
     # Maps ClipSlot.index -> the TimelineItem Resolve created for it, so
     # takes_manager can attach alternate takes to the right slot.
     clip_items: dict[int, Any]
-
-
-def _seconds_to_frames(seconds: float, fps: float) -> int:
-    return max(0, round(seconds * fps))
-
-
-def _seconds_to_srt_timestamp(seconds: float) -> str:
-    millis_total = round(seconds * 1000)
-    hours, rem = divmod(millis_total, 3_600_000)
-    minutes, rem = divmod(rem, 60_000)
-    secs, millis = divmod(rem, 1000)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
-
-
-def _write_srt(overlays: list[TextOverlay], out_path: Path) -> bool:
-    """Returns False (and writes nothing) if there's no text to inject."""
-    lines = []
-    for i, overlay in enumerate(overlays, start=1):
-        if not overlay.content.strip():
-            continue
-        lines.append(str(i))
-        lines.append(
-            f"{_seconds_to_srt_timestamp(overlay.start_seconds)} --> "
-            f"{_seconds_to_srt_timestamp(overlay.end_seconds)}"
-        )
-        lines.append(overlay.content.strip())
-        lines.append("")
-    if not lines:
-        return False
-    out_path.write_text("\n".join(lines), encoding="utf-8")
-    return True
-
-
-class _PlaceholderClipCache:
-    """Generates (and reuses) black placeholder video files for gaps, one
-    per rounded-up duration so we don't re-run ffmpeg for every gap."""
-
-    def __init__(self, work_dir: Path, fps: float):
-        self.work_dir = work_dir
-        self.fps = fps
-        self._by_duration_ceil: dict[int, Path] = {}
-
-    def get_or_create(self, min_duration_seconds: float) -> tuple[Path, float]:
-        ceil_seconds = max(1, int(min_duration_seconds) + 1)
-        if ceil_seconds in self._by_duration_ceil:
-            return self._by_duration_ceil[ceil_seconds], ceil_seconds
-
-        out_path = self.work_dir / f"placeholder_{ceil_seconds}s.mp4"
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "lavfi",
-            "-i", f"color=c=black:s=1920x1080:r={self.fps}:d={ceil_seconds}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            str(out_path),
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if not out_path.exists():
-            raise RuntimeError(f"Could not generate placeholder clip: {proc.stderr}")
-        self._by_duration_ceil[ceil_seconds] = out_path
-        return out_path, ceil_seconds
-
-
-class _SilentAudioPlaceholderCache:
-    """Generates (and reuses) silent audio files, used to fill the "Voce" and
-    "Musica" tracks contiguously wherever they don't have real content --
-    the same tiling trick _PlaceholderClipCache uses for video gaps."""
-
-    def __init__(self, work_dir: Path):
-        self.work_dir = work_dir
-        self._by_duration_ceil: dict[int, Path] = {}
-
-    def get_or_create(self, min_duration_seconds: float) -> tuple[Path, float]:
-        ceil_seconds = max(1, int(min_duration_seconds) + 1)
-        if ceil_seconds in self._by_duration_ceil:
-            return self._by_duration_ceil[ceil_seconds], ceil_seconds
-
-        out_path = self.work_dir / f"silence_{ceil_seconds}s.wav"
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "lavfi",
-            "-i", f"anullsrc=r=48000:cl=stereo",
-            "-t", str(ceil_seconds),
-            "-c:a", "pcm_s16le",
-            str(out_path),
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if not out_path.exists():
-            raise RuntimeError(f"Could not generate silent placeholder audio: {proc.stderr}")
-        self._by_duration_ceil[ceil_seconds] = out_path
-        return out_path, ceil_seconds
 
 
 def _timeline_items(template: Template) -> list[Union[ClipSlot, Gap]]:
