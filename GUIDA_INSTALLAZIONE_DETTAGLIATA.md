@@ -18,6 +18,7 @@ Ollama e il modello AI, che pesano alcuni GB).
 
 ## Indice
 
+0. [Requisiti minimi del PC e come verificarli](#0-requisiti-minimi-del-pc-e-come-verificarli)
 1. [Installare Python](#1-installare-python)
 2. [Installare FFmpeg](#2-installare-ffmpeg)
 3. [Installare Ollama e il modello AI](#3-installare-ollama-e-il-modello-ai)
@@ -28,6 +29,57 @@ Ollama e il modello AI, che pesano alcuni GB).
 8. [Analizzare un video](#8-analizzare-un-video)
 9. [Costruire la timeline in Resolve](#9-costruire-la-timeline-in-resolve)
 10. [Problemi comuni](#problemi-comuni)
+
+---
+
+## 0. Requisiti minimi del PC e come verificarli
+
+| Requisito | Minimo | Consigliato |
+|---|---|---|
+| Sistema operativo | Windows 10 64-bit | Windows 11 64-bit |
+| RAM | 8 GB | 16 GB o più |
+| Spazio libero su disco | 10 GB | 20 GB o più |
+| CPU | qualsiasi CPU recente (4 core) | più core = analisi più veloce |
+| GPU | non obbligatoria (funziona anche solo con CPU) | scheda dedicata NVIDIA/AMD con almeno 6 GB di memoria video = analisi AI molto più veloce |
+| DaVinci Resolve | versione recente (Free o Studio) | — |
+
+Perché questi numeri: Ollama tiene in memoria un modello AI di alcuni GB
+mentre gira, DaVinci Resolve da solo ne usa parecchia, e i due potrebbero
+essere aperti insieme — con 8 GB di RAM funziona ma può essere lento se hai
+molti altri programmi aperti. Lo spazio su disco serve soprattutto per il
+modello Ollama (`qwen2.5vl` pesa circa 5 GB) più i file temporanei generati
+per ogni progetto analizzato.
+
+⚠️ **Senza una GPU dedicata il plugin funziona comunque** (Ollama gira anche
+solo su CPU, e Whisper per l'audio è pensato apposta per girare su CPU) —
+sarà solo più lento nella fase di analisi AI dei singoli fotogrammi. Non è un
+requisito bloccante, solo una questione di quanto aspetti.
+
+### Come vedere le specifiche del tuo PC
+
+**RAM, CPU e sistema operativo:**
+1. Premi il tasto Windows, scrivi **"Informazioni sul sistema"** (o
+   "Informazioni su questo PC") e aprilo.
+2. Qui trovi processore, RAM installata ("Memoria RAM installata") e se il
+   sistema è a 32 o 64 bit ("Tipo di sistema").
+
+   📸 *Screenshot: pannello "Informazioni su Windows" con CPU e RAM evidenziate.*
+
+**Scheda video (GPU) e memoria dedicata:**
+1. Apri **Task Manager** (clic destro sulla barra delle applicazioni, o
+   Ctrl+Shift+Esc).
+2. Vai sulla scheda **"Prestazioni"**, poi clicca **"GPU"** nel menu a
+   sinistra.
+3. In alto a destra trovi il nome della scheda video; in basso trovi
+   **"Memoria GPU dedicata"** — è quel numero che conta per l'AI.
+
+   📸 *Screenshot: Task Manager, scheda Prestazioni > GPU, con nome scheda e
+   memoria dedicata evidenziati.*
+
+**Spazio libero su disco:**
+1. Apri Esplora File, clicca su **"Questo PC"**.
+2. Sotto ogni disco (es. `C:`) vedi lo spazio libero indicato direttamente
+   nella barra colorata.
 
 ---
 

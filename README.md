@@ -9,6 +9,17 @@ Nessun cloud, nessun account: tutto locale sul tuo PC. L'analisi AI usa di defau
 un modello vision **locale e gratuito** (via [Ollama](https://ollama.com)), senza
 costi né limiti di richieste.
 
+> 👉 **Prima volta qui?** Segui la
+> [**Guida completa all'installazione**](GUIDA_INSTALLAZIONE_DETTAGLIATA.md) —
+> spiega ogni passo, click per click, anche se non hai mai usato un terminale.
+> Questo README è una panoramica più tecnica.
+
+## Contatti
+
+Domande, problemi, suggerimenti: **gdciateam@gmail.com**. Nonostante
+l'indirizzo contenga "ia", a rispondere alle email è una persona reale (io),
+non un'intelligenza artificiale generica.
+
 ## Architettura (perché un comando da terminale + uno script Lua)
 
 Due scoperte fatte testando su Resolve reale hanno determinato questa architettura,
