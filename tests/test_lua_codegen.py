@@ -114,6 +114,14 @@ def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_fra
     assert src.count("trackIndex = voiceTrackIndex, recordFrame = 25") == 1  # its voice-track silence filler
     assert "recordFrame = 0" not in src
 
+    # Regression: separate AppendToTimeline calls (one per item) did not
+    # reliably honor recordFrame on a real Resolve install, even after the
+    # 0-vs-1 fix above. Every item needing a specific position must go
+    # through table.insert(positionedClips, ...) and get placed by a SINGLE
+    # batched AppendToTimeline(positionedClips) call instead.
+    assert src.count("table.insert(positionedClips") >= 4  # voice+filler, music+filler
+    assert src.count("mediaPool:AppendToTimeline(positionedClips)") == 1
+
 
 def test_generate_lua_script_applies_transforms(tmp_path):
     template = make_template(

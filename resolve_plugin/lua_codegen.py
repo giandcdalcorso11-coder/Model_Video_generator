@@ -156,6 +156,25 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     if template.effect_notes:
         emit("")
 
+    # Everything below that needs an explicit timeline position (subtitles,
+    # voice, music, their silence fillers) is queued into ONE shared Lua
+    # table and sent through a SINGLE AppendToTimeline call at the end,
+    # instead of one separate call per item like the rest of this file does.
+    #
+    # Why: with separate calls, recordFrame was unreliable on a real Resolve
+    # install -- tried both recordFrame = 0 and recordFrame = 1 (thinking 0
+    # might be treated as an "unset" sentinel) and every item still landed
+    # at the end of the timeline instead of its intended position, matching
+    # a real-world Resolve API limitation reported by another open-source
+    # Resolve scripting project (trackIndex+recordFrame together is
+    # unreliable across separate AppendToTimeline calls). That same project
+    # positions hundreds of caption clips correctly by submitting them all
+    # in ONE batched AppendToTimeline call instead -- this mirrors that
+    # working pattern. Verified only via the Lua-interpreter test harness so
+    # far; real-Resolve confirmation is still pending.
+    emit("local positionedClips = {}")
+    emit("")
+
     def emit_subtitle_track(overlays, filename: str, track_name: str) -> None:
         srt_path = work_dir / filename
         if not write_srt(overlays, srt_path):
@@ -172,27 +191,11 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         emit("  if srtItems and srtItems[1] then")
         emit('    timeline:AddTrack("subtitle")')
         emit('    local idx = timeline:GetTrackCount("subtitle")')
-        # recordFrame = 1, not 0: a real Resolve install placed this at the
-        # end of the timeline instead of the start when it was 0 -- see the
-        # matching comment on the voice/music recordFrame below for the full
-        # reasoning (0 appears to be treated as an unset sentinel).
+        emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
         emit(
-            "    local appended = mediaPool:AppendToTimeline({ "
-            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 1 } })"
+            "    table.insert(positionedClips, "
+            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 1 })"
         )
-        emit("    if appended and appended[1] then")
-        emit(f"      timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
-        emit(
-            f'      print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
-            f"{_lua_long_string(str(srt_path))})"
-        )
-        emit("    else")
-        emit(
-            f'      print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
-            '(AppendToTimeline non ha creato la clip). File: " .. '
-            f"{_lua_long_string(str(srt_path))})"
-        )
-        emit("    end")
         emit("  else")
         emit(
             f'    print("[Auto Template] ATTENZIONE: ImportMedia del file .srt \\"{track_name}\\" '
@@ -222,28 +225,16 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             real_track = "voiceTrackIndex" if is_voice else "musicTrackIndex"
             silent_track = "musicTrackIndex" if is_voice else "voiceTrackIndex"
 
-            # AppendToTimeline always lands at the end of the *whole* timeline's
-            # current duration, regardless of which track is targeted -- not at
-            # frame 0 of that (possibly still-empty) track. Since the Voice/Music
-            # tracks are built after the main video track already has content,
-            # every append here must pin its exact timeline position explicitly
-            # via recordFrame, or it ends up appended after the video instead of
-            # aligned in time with it (observed on a real Resolve install).
-            #
-            # recordFrame is floored at 1, never 0: a real Resolve install
-            # placed a subtitle item with recordFrame = 0 at the end of the
-            # timeline instead of the start, exactly like when no recordFrame
-            # is given at all -- consistent with 0 being treated as an unset
-            # sentinel rather than a valid explicit position (recordFrame=1
-            # worked). The 1-frame shift (<1/24s) is imperceptible.
+            # recordFrame floored at 1, never literal 0 -- see the module
+            # comment above positionedClips for why 0 alone wasn't enough.
             record_frame = max(1, seconds_to_frames(segment.start_seconds, fps))
 
             start_frame = seconds_to_frames(segment.start_seconds, fps)
             end_frame = max(start_frame, seconds_to_frames(segment.end_seconds, fps) - 1)
             emit(
-                "mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
+                "table.insert(positionedClips, { mediaPoolItem = sourceItem, "
                 f"startFrame = {start_frame}, endFrame = {end_frame}, mediaType = 2, "
-                f"trackIndex = {real_track}, recordFrame = {record_frame} }} }})"
+                f"trackIndex = {real_track}, recordFrame = {record_frame} }})"
             )
 
             silence_path, _ = silence_cache.get_or_create(duration)
@@ -251,11 +242,27 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             emit(f"local silenceItems = mediaPool:ImportMedia({{ {_lua_long_string(str(silence_path))} }})")
             emit("if silenceItems and silenceItems[1] then")
             emit(
-                "  mediaPool:AppendToTimeline({ { mediaPoolItem = silenceItems[1], startFrame = 0, "
-                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, recordFrame = {record_frame} }} }})"
+                "  table.insert(positionedClips, { mediaPoolItem = silenceItems[1], startFrame = 0, "
+                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, recordFrame = {record_frame} }})"
             )
             emit("end")
             emit("")
+
+    emit("if #positionedClips > 0 then")
+    emit("  local appended = mediaPool:AppendToTimeline(positionedClips)")
+    emit("  if appended and #appended > 0 then")
+    emit(
+        '    print("[Auto Template] Sottotitoli/voce/musica posizionati: " .. '
+        "#appended .. \" clip su \" .. #positionedClips .. \" richieste.\")"
+    )
+    emit("  else")
+    emit(
+        '    print("[Auto Template] ATTENZIONE: il posizionamento di sottotitoli/voce/musica e '
+        'fallito (AppendToTimeline non ha creato nessuna clip).")'
+    )
+    emit("  end")
+    emit("end")
+    emit("")
 
     emit(f'print("[Auto Template] Timeline creata con successo: " .. {_lua_long_string(timeline_name)})')
 

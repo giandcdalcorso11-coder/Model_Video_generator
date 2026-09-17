@@ -49,9 +49,12 @@ function mediaPool_mt:ImportMedia(paths)
   return { setmetatable({}, timeline_item_mt) }
 end
 function mediaPool_mt:AppendToTimeline(clipInfos)
-  local info = clipInfos[1]
-  record("MediaPool:AppendToTimeline", info.startFrame, info.endFrame, info.mediaType, info.trackIndex, info.recordFrame)
-  return { setmetatable({}, timeline_item_mt) }
+  local results = {}
+  for _, info in ipairs(clipInfos) do
+    record("MediaPool:AppendToTimeline", info.startFrame, info.endFrame, info.mediaType, info.trackIndex, info.recordFrame)
+    table.insert(results, setmetatable({}, timeline_item_mt))
+  end
+  return results
 end
 
 local project_mt = {}
