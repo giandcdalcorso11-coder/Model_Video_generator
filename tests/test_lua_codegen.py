@@ -95,6 +95,25 @@ def test_generate_lua_script_is_syntactically_plausible_and_complete(tmp_path):
     assert "ciao a tutti" in dialogue_srt
 
 
+def test_generate_lua_script_appends_subtitles_first_without_record_frame(tmp_path):
+    """Regression test: recordFrame never worked for subtitle-derived clips
+    on a real Resolve install (every value/combination tried still landed
+    the caption text past the end of the timeline). The fix is to append
+    subtitle tracks BEFORE any other content touches the timeline, while it
+    is still empty -- appending with no recordFrame at all reliably lands
+    at frame 0 in that case (confirmed all session for the main video
+    track's own first clip). So the subtitle append must have no
+    recordFrame, and must come before the first video clip append."""
+    template = make_template()
+    with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
+        src = generate_lua_script(template, "TestTimeline", tmp_path)
+
+    assert "mediaPoolItem = srtItems[1], trackIndex = idx } })" in src
+
+    first_video_clip_append = "startFrame = 0, endFrame = 49"  # clip 0: 0-2s @ 25fps
+    assert src.index("mediaPoolItem = srtItems[1]") < src.index(first_video_clip_append)
+
+
 def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_frame(tmp_path):
     """Regression test: AppendToTimeline lands at the end of the whole
     timeline's current duration regardless of trackIndex (confirmed on a

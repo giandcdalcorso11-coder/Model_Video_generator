@@ -122,6 +122,65 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     emit("end")
     emit("")
 
+    # Subtitle tracks are built HERE, before anything else touches the
+    # timeline -- deliberately. recordFrame never worked for this specific
+    # kind of clip on a real Resolve install: every value and combination
+    # tried (0, 1, offset by timelineStartFrame, batched or not) still
+    # landed the caption text past the end of the timeline instead of at
+    # its real position, even though the *exact same* recordFrame mechanism
+    # (see the voice/music code further below) works correctly for normal
+    # audio/video clips. The one placement that HAS worked reliably in every
+    # test all session is a clip appended with no recordFrame at all while
+    # the timeline is still completely empty -- it simply lands at frame 0.
+    # Doing the subtitle import first (before any video/audio content
+    # exists) exploits that, instead of fighting recordFrame for this media
+    # type. The .srt file's own per-cue timestamps then take over from
+    # frame 0, positioning each caption correctly relative to the video.
+    def emit_subtitle_track(overlays, filename: str, track_name: str) -> None:
+        srt_path = work_dir / filename
+        if not write_srt(overlays, srt_path):
+            return
+        # NOT `timeline:ImportIntoTimeline(path, {insertAsSubtitle=true})`:
+        # that option key isn't part of the documented API (ImportIntoTimeline
+        # is for AAF/XML timeline files) and silently did nothing against a
+        # real Resolve install. The mechanism that actually works -- same one
+        # used by other open-source Resolve subtitle tools -- is to import the
+        # .srt as its own MediaPoolItem, then AppendToTimeline it onto a
+        # subtitle track exactly like any other clip.
+        emit("do")
+        emit(f"  local srtItems = mediaPool:ImportMedia({{ {_lua_long_string(str(srt_path))} }})")
+        emit("  if srtItems and srtItems[1] then")
+        emit('    timeline:AddTrack("subtitle")')
+        emit('    local idx = timeline:GetTrackCount("subtitle")')
+        emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
+        emit(
+            "    local appended = mediaPool:AppendToTimeline({ { mediaPoolItem = srtItems[1], "
+            "trackIndex = idx } })"
+        )
+        emit("    if appended and appended[1] then")
+        emit(
+            f'      print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("    else")
+        emit(
+            f'      print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
+            '(AppendToTimeline non ha creato la clip). File: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("    end")
+        emit("  else")
+        emit(
+            f'    print("[Auto Template] ATTENZIONE: ImportMedia del file .srt \\"{track_name}\\" '
+            'fallito. File: " .. ' + f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("  end")
+        emit("end")
+        emit("")
+
+    emit_subtitle_track(template.texts, "on_screen_text.srt", ON_SCREEN_TEXT_TRACK_NAME)
+    emit_subtitle_track(template.dialogue, "dialogue.srt", DIALOGUE_TRACK_NAME)
+
     placeholder_cache = PlaceholderClipCache(work_dir, fps)
     for item in _timeline_items(template):
         if isinstance(item, ClipSlot):
@@ -167,61 +226,17 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     if template.effect_notes:
         emit("")
 
-    # Everything below that needs an explicit timeline position (subtitles,
-    # voice, music, their silence fillers) goes through its own separate
+    # Everything below that needs an explicit timeline position (voice,
+    # music, their silence fillers) goes through its own separate
     # AppendToTimeline call, each with an explicit recordFrame -- NOT
     # batched into one shared call. A batched version was tried and tested
     # worse on a real Resolve install (items landed with garbled/merged
     # durations instead of their own precise ones) -- reverted so this fix
     # (the timelineStartFrame offset below) can be verified in isolation,
-    # one change at a time, against the architecture already confirmed to
-    # fail in a well-understood way (recordFrame landing at end-of-timeline).
-
-    def emit_subtitle_track(overlays, filename: str, track_name: str) -> None:
-        srt_path = work_dir / filename
-        if not write_srt(overlays, srt_path):
-            return
-        # NOT `timeline:ImportIntoTimeline(path, {insertAsSubtitle=true})`:
-        # that option key isn't part of the documented API (ImportIntoTimeline
-        # is for AAF/XML timeline files) and silently did nothing against a
-        # real Resolve install. The mechanism that actually works -- same one
-        # used by other open-source Resolve subtitle tools -- is to import the
-        # .srt as its own MediaPoolItem, then AppendToTimeline it onto a
-        # subtitle track exactly like any other clip.
-        emit("do")
-        emit(f"  local srtItems = mediaPool:ImportMedia({{ {_lua_long_string(str(srt_path))} }})")
-        emit("  if srtItems and srtItems[1] then")
-        emit('    timeline:AddTrack("subtitle")')
-        emit('    local idx = timeline:GetTrackCount("subtitle")')
-        emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
-        emit(
-            "    local appended = mediaPool:AppendToTimeline({ { mediaPoolItem = srtItems[1], "
-            "trackIndex = idx, recordFrame = timelineStartFrame + 1 } })"
-        )
-        emit("    if appended and appended[1] then")
-        emit(
-            f'      print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
-            f"{_lua_long_string(str(srt_path))})"
-        )
-        emit("    else")
-        emit(
-            f'      print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
-            '(AppendToTimeline non ha creato la clip). File: " .. '
-            f"{_lua_long_string(str(srt_path))})"
-        )
-        emit("    end")
-        emit("  else")
-        emit(
-            f'    print("[Auto Template] ATTENZIONE: ImportMedia del file .srt \\"{track_name}\\" '
-            'fallito. File: " .. ' + f"{_lua_long_string(str(srt_path))})"
-        )
-        emit("  end")
-        emit("end")
-        emit("")
-
-    emit_subtitle_track(template.texts, "on_screen_text.srt", ON_SCREEN_TEXT_TRACK_NAME)
-    emit_subtitle_track(template.dialogue, "dialogue.srt", DIALOGUE_TRACK_NAME)
-
+    # one change at a time. Unlike subtitles (built at the very top of this
+    # function instead), recordFrame + timelineStartFrame DOES correctly
+    # position normal audio/video clips like these -- confirmed on a real
+    # Resolve install.
     if template.voice_segments or template.music_segments:
         silence_cache = SilentAudioPlaceholderCache(work_dir)
         emit('timeline:AddTrack("audio")')
