@@ -69,7 +69,19 @@ class AnalysisConfig:
     # Skip AI classification for shots shorter than this (still gets cut
     # detection + OCR, just not a full AI pass) to keep runtime/cost sane.
     min_shot_seconds_for_ai: float = 0.3
-    scene_detect_threshold: float = 27.0  # PySceneDetect ContentDetector default-ish
+    # PySceneDetect's own default (27.0) is tuned for traditional editing
+    # with genuinely different scenes. Confirmed on a real fast-paced
+    # TikTok/Reels-style video (jump cuts of the *same continuing subject*,
+    # e.g. a product rotating slightly between cuts): even after fixing
+    # min_scene_len below, threshold=27 still only found 2 of ~64 real cuts,
+    # because consecutive frames across most of those cuts look too similar
+    # (low content-difference score) to cross that bar. Lowered to 12.0 --
+    # PySceneDetect's own docs/community note ~5 as an aggressive "detect
+    # everything" baseline, so 12 is a middle ground: more sensitive to this
+    # app's primary target content (short-form montages), while still well
+    # above pure-noise territory. This is a tunable heuristic, not a
+    # verified-correct constant -- revisit if it over-segments calmer videos.
+    scene_detect_threshold: float = 12.0
     # PySceneDetect's own default min_scene_len is 15 FRAMES (~0.5s at 30fps)
     # -- any cut closer than that to the previous one gets silently merged
     # away, regardless of how strong the content change is. Confirmed on a
