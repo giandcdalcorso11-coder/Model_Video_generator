@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 from resolve_plugin.analysis.pipeline import analyze_video
+from resolve_plugin.analysis.scene_detect import probe_duration_and_fps
 from resolve_plugin.lua_codegen import generate_lua_script
 
 
@@ -42,6 +43,37 @@ def _fusion_scripts_edit_dir() -> Path:
 
 def _projects_root() -> Path:
     return Path.home() / "AutoTemplateProjects"
+
+
+def _print_timing_diagnostics(template, video_path: str) -> None:
+    """Prints the raw numbers behind the timeline's timing, so a mismatch
+    between the reconstructed video track and the text/voice/music
+    positions can be diagnosed from the terminal output instead of guessing
+    from a screenshot. Temporary debugging aid, not meant to stay forever --
+    remove once text/voice/music positioning is confirmed correct on a real
+    Resolve install."""
+    source_duration, _ = probe_duration_and_fps(video_path)
+    reconstructed_duration = sum(c.duration_seconds for c in template.clips) + sum(
+        g.end_seconds - g.start_seconds for g in template.gaps
+    )
+
+    def _range(items, label: str) -> None:
+        if not items:
+            print(f"  {label}: nessuno")
+            return
+        starts = [i.start_seconds for i in items]
+        ends = [i.end_seconds for i in items]
+        print(f"  {label}: {len(items)} elemento/i, da {min(starts):.2f}s a {max(ends):.2f}s")
+
+    print()
+    print("--- Diagnostica tempi (temporanea) ---")
+    print(f"  Durata video sorgente (ffprobe): {source_duration:.2f}s")
+    print(f"  Durata timeline ricostruita (clip + gap in sequenza): {reconstructed_duration:.2f}s")
+    _range(template.texts, "Testo a schermo")
+    _range(template.dialogue, "Dialogo")
+    _range(template.voice_segments, "Voce")
+    _range(template.music_segments, "Musica")
+    print("---------------------------------------")
 
 
 def main(argv: list[str]) -> int:
@@ -68,6 +100,11 @@ def main(argv: list[str]) -> int:
     except Exception as exc:  # noqa: BLE001 - surface any failure with a clear message and exit code
         print(f"Errore durante l'analisi: {exc}", file=sys.stderr)
         return 1
+
+    try:
+        _print_timing_diagnostics(template, str(local_video_path))
+    except Exception as exc:  # noqa: BLE001 - diagnostics must never abort a real build
+        print(f"  (diagnostica tempi non disponibile: {exc})")
 
     lua_source = generate_lua_script(template, timeline_name=stem, work_dir=project_dir)
 
