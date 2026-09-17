@@ -36,8 +36,16 @@ from resolve_plugin.config import (
 
 PROMPT = (
     "You are analyzing a single frame from a short-form video edit template. "
+    "IMPORTANT: ignore any small, semi-transparent platform watermark overlay "
+    "that stays in a fixed spot in every frame (e.g. a TikTok/Instagram/CapCut "
+    "logo plus an '@username' handle, usually in a corner) -- that is NOT part "
+    "of the edit and must never be included in the 'text' field. Only "
+    "transcribe intentional captions/titles the video editor added, which "
+    "typically appear larger, are centered or prominently placed, and change "
+    "between cuts. "
     "Reply with ONLY a compact JSON object, no prose, matching this shape: "
-    '{"text": "<any on-screen text/captions visible, verbatim, or empty string">, '
+    '{"text": "<any intentional on-screen text/captions visible (excluding '
+    'watermarks/usernames as above), verbatim, or empty string">, '
     '"effect_style": "<a short label for any visible transition/filter/effect '
     'style at this moment, e.g. \'cross dissolve\', \'zoom blur\', \'vignette\', '
     'or empty string if none>", '

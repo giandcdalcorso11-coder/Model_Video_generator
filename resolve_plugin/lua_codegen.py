@@ -172,9 +172,13 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         emit("  if srtItems and srtItems[1] then")
         emit('    timeline:AddTrack("subtitle")')
         emit('    local idx = timeline:GetTrackCount("subtitle")')
+        # recordFrame = 1, not 0: a real Resolve install placed this at the
+        # end of the timeline instead of the start when it was 0 -- see the
+        # matching comment on the voice/music recordFrame below for the full
+        # reasoning (0 appears to be treated as an unset sentinel).
         emit(
             "    local appended = mediaPool:AppendToTimeline({ "
-            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 0 } })"
+            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 1 } })"
         )
         emit("    if appended and appended[1] then")
         emit(f"      timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
@@ -225,7 +229,14 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             # every append here must pin its exact timeline position explicitly
             # via recordFrame, or it ends up appended after the video instead of
             # aligned in time with it (observed on a real Resolve install).
-            record_frame = seconds_to_frames(segment.start_seconds, fps)
+            #
+            # recordFrame is floored at 1, never 0: a real Resolve install
+            # placed a subtitle item with recordFrame = 0 at the end of the
+            # timeline instead of the start, exactly like when no recordFrame
+            # is given at all -- consistent with 0 being treated as an unset
+            # sentinel rather than a valid explicit position (recordFrame=1
+            # worked). The 1-frame shift (<1/24s) is imperceptible.
+            record_frame = max(1, seconds_to_frames(segment.start_seconds, fps))
 
             start_frame = seconds_to_frames(segment.start_seconds, fps)
             end_frame = max(start_frame, seconds_to_frames(segment.end_seconds, fps) - 1)

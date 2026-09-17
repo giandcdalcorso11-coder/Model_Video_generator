@@ -101,15 +101,18 @@ def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_fra
     real Resolve install -- Voice/Music tracks ended up appended after the
     video instead of aligned in time with it). Every voice/music append,
     real or silence filler, must pin an explicit recordFrame so it lands at
-    the segment's actual absolute position instead."""
+    the segment's actual absolute position instead. recordFrame is also
+    floored at 1 (never literal 0): a real Resolve install placed a
+    recordFrame=0 item at the end of the timeline instead of the start."""
     template = make_template()  # voice: 0.0-1.0s, music: 1.0-5.0s @ 25fps
     with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
         src = generate_lua_script(template, "TestTimeline", tmp_path)
 
-    assert src.count("mediaType = 2, trackIndex = voiceTrackIndex, recordFrame = 0") == 1  # voice clip
-    assert src.count("trackIndex = musicTrackIndex, recordFrame = 0") == 1  # its music-track silence filler
+    assert src.count("mediaType = 2, trackIndex = voiceTrackIndex, recordFrame = 1") == 1  # voice clip
+    assert src.count("trackIndex = musicTrackIndex, recordFrame = 1") == 1  # its music-track silence filler
     assert src.count("mediaType = 2, trackIndex = musicTrackIndex, recordFrame = 25") == 1  # music clip
     assert src.count("trackIndex = voiceTrackIndex, recordFrame = 25") == 1  # its voice-track silence filler
+    assert "recordFrame = 0" not in src
 
 
 def test_generate_lua_script_applies_transforms(tmp_path):
@@ -192,7 +195,8 @@ def test_generated_script_runs_correctly_against_resolve_stub_with_sandbox_enfor
     # Voice (0-1s) and music (1-5s) appends must carry an explicit recordFrame
     # (last arg) so they land at their real timeline position instead of
     # wherever AppendToTimeline's own end-of-timeline pointer happens to be.
-    assert "MediaPool:AppendToTimeline(0, 24, 2, 2, 0)" in output  # voice clip, recordFrame=0
+    # recordFrame is floored at 1 (never literal 0, see lua_codegen.py).
+    assert "MediaPool:AppendToTimeline(0, 24, 2, 2, 1)" in output  # voice clip, recordFrame=1 (floored)
     assert "MediaPool:AppendToTimeline(25, 124, 2, 3, 25)" in output  # music clip, recordFrame=25
     assert "Timeline:SetTrackName(subtitle" in output
     assert "Voce" in output
