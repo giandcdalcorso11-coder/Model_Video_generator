@@ -139,7 +139,12 @@ def analyze_video(
     duration, fps = scene_detect.probe_duration_and_fps(video_path)
 
     report(5, 100, "Detecting cuts...")
-    shots = scene_detect.detect_shots(video_path, CONFIG.analysis.scene_detect_threshold)
+    shots = scene_detect.detect_shots(
+        video_path,
+        CONFIG.analysis.scene_detect_threshold,
+        fps=fps,
+        min_scene_len_seconds=CONFIG.analysis.scene_detect_min_scene_len_seconds,
+    )
 
     report(20, 100, "Detecting empty/black spaces...")
     black_ranges = scene_detect.detect_black_frames(video_path)

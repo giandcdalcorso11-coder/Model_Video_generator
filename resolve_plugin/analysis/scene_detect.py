@@ -62,17 +62,33 @@ def probe_duration_and_fps(video_path: str) -> tuple[float, float]:
     return duration, fps
 
 
-def detect_shots(video_path: str, threshold: float = 27.0) -> list[Shot]:
+def detect_shots(
+    video_path: str,
+    threshold: float = 27.0,
+    fps: float | None = None,
+    min_scene_len_seconds: float = 0.08,
+) -> list[Shot]:
     """Detects hard cuts using PySceneDetect's ContentDetector and returns
     contiguous shots covering the whole video (no gaps between them --
     silence/black gaps are detected separately and subtracted later by the
-    pipeline)."""
+    pipeline).
+
+    min_scene_len_seconds overrides PySceneDetect's own default min_scene_len
+    (15 frames, ~0.5s at 30fps) -- too long for fast-paced montages where
+    real cuts can be under 0.15s apart, which that default would silently
+    merge away regardless of the content threshold. fps is used to convert
+    it to the frame count PySceneDetect's API expects; pass the video's real
+    fps (already probed via probe_duration_and_fps) for an accurate
+    conversion, or leave it as None to fall back to a conservative 30fps
+    assumption."""
     from scenedetect import open_video, SceneManager
     from scenedetect.detectors import ContentDetector
 
     video = open_video(video_path)
+    min_scene_len_frames = max(1, round(min_scene_len_seconds * (fps or 30.0)))
+
     scene_manager = SceneManager()
-    scene_manager.add_detector(ContentDetector(threshold=threshold))
+    scene_manager.add_detector(ContentDetector(threshold=threshold, min_scene_len=min_scene_len_frames))
     scene_manager.detect_scenes(video)
     scene_list = scene_manager.get_scene_list()
 

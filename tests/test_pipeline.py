@@ -80,7 +80,9 @@ def _patch_common_video_analysis(monkeypatch):
     monkeypatch.setattr(
         pipeline.scene_detect,
         "detect_shots",
-        lambda path, threshold: [scene_detect.Shot(0.0, 2.0), scene_detect.Shot(2.0, 5.0)],
+        lambda path, threshold, fps=None, min_scene_len_seconds=0.08: [
+            scene_detect.Shot(0.0, 2.0), scene_detect.Shot(2.0, 5.0),
+        ],
     )
     monkeypatch.setattr(
         pipeline.scene_detect, "detect_black_frames", lambda path: []

@@ -61,6 +61,58 @@ def test_detect_shots_converts_scene_list(monkeypatch):
     assert shots[0].duration_seconds == 2.0
 
 
+def test_detect_shots_converts_min_scene_len_seconds_to_frames_using_real_fps(monkeypatch):
+    """Regression test: PySceneDetect's own default min_scene_len (15 frames,
+    ~0.5s at 30fps) silently merges away cuts closer together than that --
+    confirmed on a real fast-paced TikTok-style video where it swallowed
+    ~62 of ~64 real cuts. detect_shots must convert our own (much smaller)
+    min_scene_len_seconds config value to frames using the video's real fps,
+    not PySceneDetect's default."""
+    fake_scene_manager_instance = MagicMock()
+    fake_scene_manager_instance.get_scene_list.return_value = []
+
+    fake_scenedetect_module = types.ModuleType("scenedetect")
+    fake_scenedetect_module.open_video = MagicMock(return_value=MagicMock())
+    fake_scenedetect_module.SceneManager = MagicMock(return_value=fake_scene_manager_instance)
+
+    fake_content_detector = MagicMock()
+    fake_detectors_module = types.ModuleType("scenedetect.detectors")
+    fake_detectors_module.ContentDetector = fake_content_detector
+
+    monkeypatch.setitem(sys.modules, "scenedetect", fake_scenedetect_module)
+    monkeypatch.setitem(sys.modules, "scenedetect.detectors", fake_detectors_module)
+
+    with patch.object(scene_detect, "probe_duration_and_fps", return_value=(10.0, 60.0)):
+        scene_detect.detect_shots(
+            "video.mp4", threshold=27.0, fps=60.0, min_scene_len_seconds=0.1,
+        )
+
+    # 0.1s @ 60fps = 6 frames -- nowhere near PySceneDetect's own 15-frame default.
+    fake_content_detector.assert_called_once_with(threshold=27.0, min_scene_len=6)
+
+
+def test_detect_shots_falls_back_to_30fps_when_fps_not_given(monkeypatch):
+    fake_scene_manager_instance = MagicMock()
+    fake_scene_manager_instance.get_scene_list.return_value = []
+
+    fake_scenedetect_module = types.ModuleType("scenedetect")
+    fake_scenedetect_module.open_video = MagicMock(return_value=MagicMock())
+    fake_scenedetect_module.SceneManager = MagicMock(return_value=fake_scene_manager_instance)
+
+    fake_content_detector = MagicMock()
+    fake_detectors_module = types.ModuleType("scenedetect.detectors")
+    fake_detectors_module.ContentDetector = fake_content_detector
+
+    monkeypatch.setitem(sys.modules, "scenedetect", fake_scenedetect_module)
+    monkeypatch.setitem(sys.modules, "scenedetect.detectors", fake_detectors_module)
+
+    with patch.object(scene_detect, "probe_duration_and_fps", return_value=(10.0, 30.0)):
+        scene_detect.detect_shots("video.mp4", threshold=27.0, min_scene_len_seconds=0.1)
+
+    # 0.1s @ fallback 30fps = 3 frames.
+    fake_content_detector.assert_called_once_with(threshold=27.0, min_scene_len=3)
+
+
 def test_detect_shots_falls_back_to_single_shot_when_no_cuts(monkeypatch):
     fake_scene_manager_instance = MagicMock()
     fake_scene_manager_instance.get_scene_list.return_value = []

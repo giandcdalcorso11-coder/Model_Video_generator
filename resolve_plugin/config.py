@@ -70,6 +70,16 @@ class AnalysisConfig:
     # detection + OCR, just not a full AI pass) to keep runtime/cost sane.
     min_shot_seconds_for_ai: float = 0.3
     scene_detect_threshold: float = 27.0  # PySceneDetect ContentDetector default-ish
+    # PySceneDetect's own default min_scene_len is 15 FRAMES (~0.5s at 30fps)
+    # -- any cut closer than that to the previous one gets silently merged
+    # away, regardless of how strong the content change is. Confirmed on a
+    # real fast-paced TikTok/Reels-style template (jump cuts every ~0.1-0.15s):
+    # PySceneDetect returned only 2 shots for a video with ~64 real cuts,
+    # because virtually every cut was closer together than 0.5s. This value
+    # is in SECONDS (converted to frames using the video's real fps at
+    # detection time) rather than frames, since it needs to stay meaningful
+    # across videos with different frame rates.
+    scene_detect_min_scene_len_seconds: float = 0.08
 
     # Voice/music separation (see analysis/speech.py). Uses Whisper for
     # speech detection + transcription -- CPU-only, no GPU needed, and
