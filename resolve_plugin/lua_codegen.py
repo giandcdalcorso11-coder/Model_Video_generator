@@ -160,10 +160,30 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         srt_path = work_dir / filename
         if not write_srt(overlays, srt_path):
             return
-        emit(f"timeline:ImportIntoTimeline({_lua_long_string(str(srt_path))}, {{ insertAsSubtitle = true }})")
         emit("do")
-        emit('  local idx = timeline:GetTrackCount("subtitle")')
-        emit(f'  if idx and idx > 0 then timeline:SetTrackName("subtitle", idx, {_lua_long_string(track_name)}) end')
+        emit(f'  local tracksBefore = timeline:GetTrackCount("subtitle")')
+        emit(
+            f"  local importOk = timeline:ImportIntoTimeline({_lua_long_string(str(srt_path))}, "
+            "{ insertAsSubtitle = true })"
+        )
+        emit(f'  local idx = timeline:GetTrackCount("subtitle")')
+        # Don't gate success on importOk's truthiness -- some Resolve API
+        # calls return nil even when they work. The real signal that the
+        # import actually did something is a new subtitle track appearing.
+        emit("  if idx and idx > tracksBefore then")
+        emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
+        emit(
+            f'    print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("  else")
+        emit(
+            f'    print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
+            '(nessuna nuova traccia sottotitoli creata; ImportIntoTimeline ha restituito " '
+            '.. tostring(importOk) .. "). File: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("  end")
         emit("end")
         emit("")
 
