@@ -107,11 +107,13 @@ def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_fra
     never a bare small integer: recordFrame is an ABSOLUTE frame number in
     Resolve's own internal clock, and real Resolve timelines start at
     timecode 01:00:00:00 (not 00:00:00:00) -- a bare 0 or 1 sits before the
-    timeline's actual addressable start and gets silently rejected,
-    falling back to end-of-timeline placement (confirmed on a real Resolve
-    install across three different attempts: recordFrame=0, recordFrame=1,
-    and batching -- all landed identically wrong until this offset was
-    added)."""
+    timeline's actual addressable start. Confirmed on a real Resolve install
+    across four attempts so far (recordFrame=0, recordFrame=1, batched with
+    recordFrame=1, batched with the timelineStartFrame offset) that each
+    landed wrong in its own way -- the batched variants are especially
+    suspect, since they also changed a *different* durations/positions
+    symptom, so this test now pins the un-batched (one AppendToTimeline
+    call per item) architecture to isolate the offset fix on its own."""
     template = make_template()  # voice: 0.0-1.0s, music: 1.0-5.0s @ 25fps
     with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
         src = generate_lua_script(template, "TestTimeline", tmp_path)
@@ -134,13 +136,22 @@ def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_fra
     assert "recordFrame = 0" not in src
     assert "recordFrame = 1" not in src  # must always be offset, never bare
 
-    # Regression: separate AppendToTimeline calls (one per item) did not
-    # reliably honor recordFrame on a real Resolve install, even after the
-    # 0-vs-1 fix above. Every item needing a specific position must go
-    # through table.insert(positionedClips, ...) and get placed by a SINGLE
-    # batched AppendToTimeline(positionedClips) call instead.
-    assert src.count("table.insert(positionedClips") >= 4  # voice+filler, music+filler
-    assert src.count("mediaPool:AppendToTimeline(positionedClips)") == 1
+    # Reverted: batching every positioned item into one shared
+    # AppendToTimeline(positionedClips) call tested WORSE on a real Resolve
+    # install (garbled/merged clip durations) than the separate-calls
+    # architecture it replaced. Back to one AppendToTimeline call per item.
+    assert "positionedClips" not in src
+    assert (
+        src.count("mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
+                  "startFrame = 0, endFrame = 24, mediaType = 2")
+        == 1
+    )  # voice clip, its own AppendToTimeline call
+    assert (
+        src.count("mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
+                  "startFrame = 25, endFrame = 124, mediaType = 2")
+        == 1
+    )  # music clip, its own AppendToTimeline call
+    assert src.count("mediaPool:AppendToTimeline({ { mediaPoolItem = silenceItems[1]") == 2
 
 
 def test_generate_lua_script_applies_transforms(tmp_path):

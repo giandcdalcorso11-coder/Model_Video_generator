@@ -168,23 +168,14 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         emit("")
 
     # Everything below that needs an explicit timeline position (subtitles,
-    # voice, music, their silence fillers) is queued into ONE shared Lua
-    # table and sent through a SINGLE AppendToTimeline call at the end,
-    # instead of one separate call per item like the rest of this file does.
-    #
-    # Why: with separate calls, recordFrame was unreliable on a real Resolve
-    # install -- tried both recordFrame = 0 and recordFrame = 1 (thinking 0
-    # might be treated as an "unset" sentinel) and every item still landed
-    # at the end of the timeline instead of its intended position, matching
-    # a real-world Resolve API limitation reported by another open-source
-    # Resolve scripting project (trackIndex+recordFrame together is
-    # unreliable across separate AppendToTimeline calls). That same project
-    # positions hundreds of caption clips correctly by submitting them all
-    # in ONE batched AppendToTimeline call instead -- this mirrors that
-    # working pattern. Verified only via the Lua-interpreter test harness so
-    # far; real-Resolve confirmation is still pending.
-    emit("local positionedClips = {}")
-    emit("")
+    # voice, music, their silence fillers) goes through its own separate
+    # AppendToTimeline call, each with an explicit recordFrame -- NOT
+    # batched into one shared call. A batched version was tried and tested
+    # worse on a real Resolve install (items landed with garbled/merged
+    # durations instead of their own precise ones) -- reverted so this fix
+    # (the timelineStartFrame offset below) can be verified in isolation,
+    # one change at a time, against the architecture already confirmed to
+    # fail in a well-understood way (recordFrame landing at end-of-timeline).
 
     def emit_subtitle_track(overlays, filename: str, track_name: str) -> None:
         srt_path = work_dir / filename
@@ -204,10 +195,21 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         emit('    local idx = timeline:GetTrackCount("subtitle")')
         emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
         emit(
-            "    table.insert(positionedClips, "
-            "{ mediaPoolItem = srtItems[1], trackIndex = idx, "
-            "recordFrame = timelineStartFrame + 1 })"
+            "    local appended = mediaPool:AppendToTimeline({ { mediaPoolItem = srtItems[1], "
+            "trackIndex = idx, recordFrame = timelineStartFrame + 1 } })"
         )
+        emit("    if appended and appended[1] then")
+        emit(
+            f'      print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("    else")
+        emit(
+            f'      print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
+            '(AppendToTimeline non ha creato la clip). File: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("    end")
         emit("  else")
         emit(
             f'    print("[Auto Template] ATTENZIONE: ImportMedia del file .srt \\"{track_name}\\" '
@@ -237,19 +239,20 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             real_track = "voiceTrackIndex" if is_voice else "musicTrackIndex"
             silent_track = "musicTrackIndex" if is_voice else "voiceTrackIndex"
 
-            # recordFrame floored at 1, never literal 0 -- see the module
-            # comment above positionedClips for why 0 alone wasn't enough.
-            # This is still just the offset WITHIN the analyzed video, not
-            # the final recordFrame -- timelineStartFrame gets added at
-            # emission time below (see the comment on timelineStartFrame).
+            # recordFrame floored at 1, never literal 0, and offset by
+            # timelineStartFrame (Timeline:GetStartFrame()): recordFrame is
+            # an ABSOLUTE frame in Resolve's own internal clock, and real
+            # Resolve timelines start at timecode 01:00:00:00, not
+            # 00:00:00:00 -- a bare small value sits before the timeline's
+            # actual addressable start.
             record_frame_offset = max(1, seconds_to_frames(segment.start_seconds, fps))
 
             start_frame = seconds_to_frames(segment.start_seconds, fps)
             end_frame = max(start_frame, seconds_to_frames(segment.end_seconds, fps) - 1)
             emit(
-                "table.insert(positionedClips, { mediaPoolItem = sourceItem, "
+                "mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
                 f"startFrame = {start_frame}, endFrame = {end_frame}, mediaType = 2, "
-                f"trackIndex = {real_track}, recordFrame = timelineStartFrame + {record_frame_offset} }})"
+                f"trackIndex = {real_track}, recordFrame = timelineStartFrame + {record_frame_offset} }} }})"
             )
 
             silence_path, _ = silence_cache.get_or_create(duration)
@@ -257,28 +260,12 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             emit(f"local silenceItems = mediaPool:ImportMedia({{ {_lua_long_string(str(silence_path))} }})")
             emit("if silenceItems and silenceItems[1] then")
             emit(
-                "  table.insert(positionedClips, { mediaPoolItem = silenceItems[1], startFrame = 0, "
+                "  mediaPool:AppendToTimeline({ { mediaPoolItem = silenceItems[1], startFrame = 0, "
                 f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, "
-                f"recordFrame = timelineStartFrame + {record_frame_offset} }})"
+                f"recordFrame = timelineStartFrame + {record_frame_offset} }} }})"
             )
             emit("end")
             emit("")
-
-    emit("if #positionedClips > 0 then")
-    emit("  local appended = mediaPool:AppendToTimeline(positionedClips)")
-    emit("  if appended and #appended > 0 then")
-    emit(
-        '    print("[Auto Template] Sottotitoli/voce/musica posizionati: " .. '
-        "#appended .. \" clip su \" .. #positionedClips .. \" richieste.\")"
-    )
-    emit("  else")
-    emit(
-        '    print("[Auto Template] ATTENZIONE: il posizionamento di sottotitoli/voce/musica e '
-        'fallito (AppendToTimeline non ha creato nessuna clip).")'
-    )
-    emit("  end")
-    emit("end")
-    emit("")
 
     emit(f'print("[Auto Template] Timeline creata con successo: " .. {_lua_long_string(timeline_name)})')
 
