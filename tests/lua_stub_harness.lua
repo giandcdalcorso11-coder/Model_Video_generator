@@ -35,6 +35,11 @@ function timeline_mt:ImportIntoTimeline(path, opts)
   track_counts.subtitle = track_counts.subtitle + 1
 end
 function timeline_mt:GetTrackCount(t) return track_counts[t] or 0 end
+-- Simulates a real Resolve timeline starting at 01:00:00:00 rather than
+-- 00:00:00:00 (the usual convention) -- a nonzero, non-round value so a
+-- test can't accidentally pass just because timelineStartFrame happens
+-- to be 0 or match some other stub default.
+function timeline_mt:GetStartFrame() return 90000 end
 function timeline_mt:SetTrackName(t, i, n) record("Timeline:SetTrackName", t, i, n) end
 function timeline_mt:AddTrack(t) track_counts[t] = (track_counts[t] or 0) + 1 end
 

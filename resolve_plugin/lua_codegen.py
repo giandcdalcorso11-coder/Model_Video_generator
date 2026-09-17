@@ -102,6 +102,17 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     emit("  return")
     emit("end")
     emit("project:SetCurrentTimeline(timeline)")
+    # recordFrame is an ABSOLUTE frame number in Resolve's own internal
+    # clock, not relative to the timeline's own visible start -- and
+    # Resolve timelines conventionally start at timecode 01:00:00:00 (one
+    # hour in), not 00:00:00:00. Every recordFrame value tried without this
+    # offset (0, then 1, then batched) landed identically wrong on a real
+    # Resolve install, always falling back to end-of-timeline placement --
+    # consistent with small values like 0/1 being before the timeline's
+    # actual addressable start and getting rejected/ignored. GetStartFrame()
+    # is the documented way to read that offset at runtime instead of
+    # hardcoding the 01:00:00:00 convention (which is configurable).
+    emit("local timelineStartFrame = timeline:GetStartFrame()")
     emit("")
     emit(f"local sourceItems = mediaPool:ImportMedia({{ {_lua_long_string(template.source_video_path)} }})")
     emit("local sourceItem = sourceItems and sourceItems[1]")
@@ -194,7 +205,8 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
         emit(
             "    table.insert(positionedClips, "
-            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 1 })"
+            "{ mediaPoolItem = srtItems[1], trackIndex = idx, "
+            "recordFrame = timelineStartFrame + 1 })"
         )
         emit("  else")
         emit(
@@ -227,14 +239,17 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
 
             # recordFrame floored at 1, never literal 0 -- see the module
             # comment above positionedClips for why 0 alone wasn't enough.
-            record_frame = max(1, seconds_to_frames(segment.start_seconds, fps))
+            # This is still just the offset WITHIN the analyzed video, not
+            # the final recordFrame -- timelineStartFrame gets added at
+            # emission time below (see the comment on timelineStartFrame).
+            record_frame_offset = max(1, seconds_to_frames(segment.start_seconds, fps))
 
             start_frame = seconds_to_frames(segment.start_seconds, fps)
             end_frame = max(start_frame, seconds_to_frames(segment.end_seconds, fps) - 1)
             emit(
                 "table.insert(positionedClips, { mediaPoolItem = sourceItem, "
                 f"startFrame = {start_frame}, endFrame = {end_frame}, mediaType = 2, "
-                f"trackIndex = {real_track}, recordFrame = {record_frame} }})"
+                f"trackIndex = {real_track}, recordFrame = timelineStartFrame + {record_frame_offset} }})"
             )
 
             silence_path, _ = silence_cache.get_or_create(duration)
@@ -243,7 +258,8 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             emit("if silenceItems and silenceItems[1] then")
             emit(
                 "  table.insert(positionedClips, { mediaPoolItem = silenceItems[1], startFrame = 0, "
-                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, recordFrame = {record_frame} }})"
+                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, "
+                f"recordFrame = timelineStartFrame + {record_frame_offset} }})"
             )
             emit("end")
             emit("")
