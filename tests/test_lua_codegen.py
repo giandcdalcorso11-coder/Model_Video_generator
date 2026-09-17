@@ -106,8 +106,10 @@ def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_fra
     with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
         src = generate_lua_script(template, "TestTimeline", tmp_path)
 
-    assert src.count("recordFrame = 0") == 2  # voice clip + its music-track silence filler
-    assert src.count("recordFrame = 25") == 2  # music clip + its voice-track silence filler
+    assert src.count("mediaType = 2, trackIndex = voiceTrackIndex, recordFrame = 0") == 1  # voice clip
+    assert src.count("trackIndex = musicTrackIndex, recordFrame = 0") == 1  # its music-track silence filler
+    assert src.count("mediaType = 2, trackIndex = musicTrackIndex, recordFrame = 25") == 1  # music clip
+    assert src.count("trackIndex = voiceTrackIndex, recordFrame = 25") == 1  # its voice-track silence filler
 
 
 def test_generate_lua_script_applies_transforms(tmp_path):

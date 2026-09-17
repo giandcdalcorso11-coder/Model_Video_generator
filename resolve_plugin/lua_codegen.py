@@ -160,28 +160,39 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         srt_path = work_dir / filename
         if not write_srt(overlays, srt_path):
             return
+        # NOT `timeline:ImportIntoTimeline(path, {insertAsSubtitle=true})`:
+        # that option key isn't part of the documented API (ImportIntoTimeline
+        # is for AAF/XML timeline files) and silently did nothing against a
+        # real Resolve install. The mechanism that actually works -- same one
+        # used by other open-source Resolve subtitle tools -- is to import the
+        # .srt as its own MediaPoolItem, then AppendToTimeline it onto a
+        # subtitle track exactly like any other clip.
         emit("do")
-        emit(f'  local tracksBefore = timeline:GetTrackCount("subtitle")')
+        emit(f"  local srtItems = mediaPool:ImportMedia({{ {_lua_long_string(str(srt_path))} }})")
+        emit("  if srtItems and srtItems[1] then")
+        emit('    timeline:AddTrack("subtitle")')
+        emit('    local idx = timeline:GetTrackCount("subtitle")')
         emit(
-            f"  local importOk = timeline:ImportIntoTimeline({_lua_long_string(str(srt_path))}, "
-            "{ insertAsSubtitle = true })"
+            "    local appended = mediaPool:AppendToTimeline({ "
+            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 0 } })"
         )
-        emit(f'  local idx = timeline:GetTrackCount("subtitle")')
-        # Don't gate success on importOk's truthiness -- some Resolve API
-        # calls return nil even when they work. The real signal that the
-        # import actually did something is a new subtitle track appearing.
-        emit("  if idx and idx > tracksBefore then")
-        emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
+        emit("    if appended and appended[1] then")
+        emit(f"      timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
         emit(
-            f'    print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
+            f'      print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
             f"{_lua_long_string(str(srt_path))})"
         )
+        emit("    else")
+        emit(
+            f'      print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
+            '(AppendToTimeline non ha creato la clip). File: " .. '
+            f"{_lua_long_string(str(srt_path))})"
+        )
+        emit("    end")
         emit("  else")
         emit(
-            f'    print("[Auto Template] ATTENZIONE: import sottotitoli \\"{track_name}\\" fallito '
-            '(nessuna nuova traccia sottotitoli creata; ImportIntoTimeline ha restituito " '
-            '.. tostring(importOk) .. "). File: " .. '
-            f"{_lua_long_string(str(srt_path))})"
+            f'    print("[Auto Template] ATTENZIONE: ImportMedia del file .srt \\"{track_name}\\" '
+            'fallito. File: " .. ' + f"{_lua_long_string(str(srt_path))})"
         )
         emit("  end")
         emit("end")
