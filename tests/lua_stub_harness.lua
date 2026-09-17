@@ -16,7 +16,10 @@ end
 
 local calls = {}
 local function record(name, ...)
-  table.insert(calls, { name = name, args = { ... } })
+  -- n must be captured explicitly: a trailing non-nil value (recordFrame)
+  -- after a nil hole (mediaType/trackIndex left unset on main-track clips)
+  -- would otherwise make #args / ipairs stop early and silently drop it.
+  table.insert(calls, { name = name, args = { ... }, n = select("#", ...) })
 end
 
 local track_counts = { subtitle = 0, audio = 1 }
@@ -92,6 +95,6 @@ end
 print(string.format("Total calls recorded: %d", #calls))
 for _, c in ipairs(calls) do
   local parts = {}
-  for _, a in ipairs(c.args) do table.insert(parts, tostring(a)) end
+  for i = 1, c.n do table.insert(parts, tostring(c.args[i])) end
   print(c.name .. "(" .. table.concat(parts, ", ") .. ")")
 end

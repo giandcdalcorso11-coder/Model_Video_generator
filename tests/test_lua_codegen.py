@@ -82,6 +82,21 @@ def test_generate_lua_script_is_syntactically_plausible_and_complete(tmp_path):
     assert "startFrame = 0, endFrame = 49" in src  # clip 0: 0-2s @ 25fps
     assert "startFrame = 75, endFrame = 124" in src  # clip 1: 3-5s @ 25fps
     assert "endFrame = 24" in src  # 1s gap placeholder @ 25fps
+
+    # Regression: the main clip/gap track must carry an explicit recordFrame
+    # too, not just voice/music -- otherwise its plain sequential ordering
+    # ("no recordFrame" = append after whatever's already on the timeline)
+    # breaks the moment anything else (the subtitle import) gets appended
+    # to the timeline first, which is now deliberately the case (confirmed
+    # on a real Resolve install: the main track's first clip landed AFTER
+    # the subtitle block instead of at the true start, until this fix).
+    assert (
+        "startFrame = 0, endFrame = 49, recordFrame = timelineStartFrame + 1" in src
+    )  # clip 0 @ timeline_start_seconds=0.0, floored at 1
+    assert (
+        "startFrame = 75, endFrame = 124, recordFrame = timelineStartFrame + 75" in src
+    )  # clip 1 @ timeline_start_seconds=3.0s
+    assert "endFrame = 24, recordFrame = timelineStartFrame + 50" in src  # gap @ start_seconds=2.0s
     assert 'timeline:AddMarker(50, "Yellow", [[dissolve]]' in src
     assert "Testo a schermo" in src
     assert "Dialogo (trascrizione)" in src
@@ -246,8 +261,10 @@ def test_generated_script_runs_correctly_against_resolve_stub_with_sandbox_enfor
 
     assert "SCRIPT ERROR" not in output, output
     assert "MediaPool:CreateEmptyTimeline(TestTimeline)" in output
-    assert "MediaPool:AppendToTimeline(0, 49" in output  # clip 0: 0-2s @ 25fps
-    assert "MediaPool:AppendToTimeline(75, 124" in output  # clip 1: 3-5s @ 25fps
+    # Main-track clips also carry recordFrame now (last arg), offset by the
+    # stub's timelineStartFrame=90000 -- see the comment on _record_frame_expr.
+    assert "MediaPool:AppendToTimeline(0, 49, nil, nil, 90001)" in output  # clip 0: 0-2s @ 25fps
+    assert "MediaPool:AppendToTimeline(75, 124, nil, nil, 90075)" in output  # clip 1: 3-5s @ 25fps
     assert "Timeline:AddMarker(50, Yellow, dissolve" in output
 
     # Voice (0-1s) and music (1-5s) appends must carry an explicit recordFrame
