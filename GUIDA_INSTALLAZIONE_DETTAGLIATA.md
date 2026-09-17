@@ -76,7 +76,7 @@ requisito bloccante, solo una questione di quanto aspetti.
 2. Qui trovi processore, RAM installata ("Memoria RAM installata") e se il
    sistema è a 32 o 64 bit ("Tipo di sistema").
 
-   📸 *Screenshot: pannello "Informazioni su Windows" con CPU e RAM evidenziate.*
+   ![Pannello Informazioni sul sistema con CPU e RAM evidenziate](images/00-informazioni-sistema.png)
 
 **Scheda video (GPU) e memoria dedicata:**
 1. Apri **Task Manager** (clic destro sulla barra delle applicazioni, o
