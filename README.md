@@ -99,6 +99,16 @@ creato dentro la cartella del progetto viene ignorato. Sopravvive a
 `git pull`/`python scripts/install.py` successivi, quindi va creato una
 volta sola.
 
+⚠️ Il contenuto JSON qui sotto va scritto **dentro quel file**, non incollato
+come comando in PowerShell (dà un errore di sintassi se lo fai). Il modo più
+rapido per crearlo/modificarlo da PowerShell:
+```powershell
+notepad "C:\Users\<tuo-utente>\AppData\Roaming\AutoTemplatePlugin\resolve_plugin\user_config.json"
+```
+Se il file non esiste, Notepad chiede "Vuoi creare un nuovo file?" → **Sì**.
+Incolla il JSON, salva con **Ctrl+S**, chiudi Notepad — non serve riaprire
+PowerShell, la modifica vale già dalla prossima analisi che lanci.
+
 ```json
 { "ollama": { "model": "moondream" } }
 ```
