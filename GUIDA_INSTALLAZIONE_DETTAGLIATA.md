@@ -107,8 +107,14 @@ requisito bloccante, solo una questione di quanto aspetti.
    cliccare "Install Now" — se non la spunti, i comandi `python` scritti più
    avanti in questa guida non funzioneranno e dovrai reinstallare da capo.
 
-   📸 *Screenshot: prima schermata dell'installer Python con la casella "Add
-   python.exe to PATH" evidenziata.*
+   ![Download di Python e avvio dell'installer](images/01-python-installer.png)
+
+   ⚠️ Nota: se il tuo installer si presenta come nello screenshot sopra (il
+   nuovo "Python Install Manager" di python.org), potresti non vedere la
+   casella "Add python.exe to PATH" in questa schermata iniziale — su questa
+   versione dell'installer il PATH viene gestito in automatico o in una
+   schermata successiva. In ogni caso, fai sempre la verifica al punto 5 qui
+   sotto: se `python --version` funziona, va bene comunque.
 
 4. Clicca "Install Now" e aspetta che finisca.
 5. ✅ Verifica: apri un terminale (vedi [sezione 5](#5-aprire-un-terminale-nella-cartella-giusta)
@@ -131,8 +137,14 @@ la guida, ma va fatto una sola volta.
 1. Vai su **https://www.gyan.dev/ffmpeg/builds/** (sito di riferimento per le
    build Windows di FFmpeg).
 2. Cerca la sezione "release builds" e scarica lo **`ffmpeg-release-essentials.zip`**.
+
+   ![Pagina release builds di gyan.dev con il link ffmpeg-release-essentials.zip evidenziato](images/02-ffmpeg-download.png)
+
 3. Estrai lo zip. Dentro trovi una cartella con un nome lungo tipo
    `ffmpeg-7.x-essentials_build`.
+
+   ![Cartella estratta dallo zip di FFmpeg, con le sottocartelle bin/doc/presets](images/03-ffmpeg-cartella-estratta.png)
+
 4. **Sposta** (non copiare: sposta) quella cartella direttamente dentro `C:\`,
    e rinominala semplicemente in `ffmpeg`. Alla fine deve esistere il percorso
    `C:\ffmpeg\bin\ffmpeg.exe`.
@@ -144,6 +156,9 @@ la guida, ma va fatto una sola volta.
    - Premi il tasto Windows, scrivi **"variabili di ambiente"** e apri
      "Modifica le variabili di ambiente relative al sistema".
    - Clicca il pulsante **"Variabili d'ambiente..."** in basso.
+
+   ![Finestra Variabili d'ambiente, con le liste Variabili utente e Variabili di sistema](images/04-variabili-ambiente.png)
+
    - Nel riquadro superiore ("Variabili utente"), seleziona la riga **Path** e
      clicca **Modifica...**.
    - Clicca **Nuovo** e scrivi esattamente: `C:\ffmpeg\bin`
@@ -168,6 +183,9 @@ la guida, ma va fatto una sola volta.
 ## 3. Installare Ollama e il modello AI
 
 1. Vai su **https://ollama.com/download** e scarica la versione Windows.
+
+   ![Pagina di download di Ollama con il pulsante Download for Windows](images/05-ollama-download.png)
+
 2. Apri l'installer e segui i passi (non serve creare un account per l'uso
    locale da riga di comando — se il sito ti propone di registrarti, puoi
    saltare).
