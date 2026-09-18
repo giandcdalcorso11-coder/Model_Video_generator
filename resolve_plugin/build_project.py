@@ -20,7 +20,6 @@ import os
 import re
 import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from resolve_plugin.analysis.pipeline import analyze_video
@@ -43,6 +42,21 @@ def _fusion_scripts_edit_dir() -> Path:
 
 def _projects_root() -> Path:
     return Path.home() / "AutoTemplateProjects"
+
+
+def _next_project_name(stem: str, scripts_edit_dir: Path, projects_root: Path) -> str:
+    """Picks "<stem>" for the first analysis of a given video, or
+    "<stem>_2", "<stem>_3", ... for later ones -- so the script/project name
+    stays readable (the video's own name) instead of a timestamp, while
+    still never colliding with a previous run's script or project folder."""
+    candidate = stem
+    version = 1
+    while (scripts_edit_dir / f"Auto Template - {candidate}.lua").exists() or (
+        projects_root / candidate
+    ).exists():
+        version += 1
+        candidate = f"{stem}_{version}"
+    return candidate
 
 
 def _print_timing_diagnostics(template, video_path: str) -> None:
@@ -87,8 +101,8 @@ def main(argv: list[str]) -> int:
         return 1
 
     stem = _sanitize_filename(video_path.stem)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    project_name = f"{stem}_{timestamp}"
+    scripts_edit_dir = _fusion_scripts_edit_dir()
+    project_name = _next_project_name(stem, scripts_edit_dir, _projects_root())
     project_dir = _projects_root() / project_name
     project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -108,7 +122,6 @@ def main(argv: list[str]) -> int:
 
     lua_source = generate_lua_script(template, timeline_name=stem, work_dir=project_dir)
 
-    scripts_edit_dir = _fusion_scripts_edit_dir()
     scripts_edit_dir.mkdir(parents=True, exist_ok=True)
     script_basename = f"Auto Template - {project_name}"
     script_path = scripts_edit_dir / f"{script_basename}.lua"

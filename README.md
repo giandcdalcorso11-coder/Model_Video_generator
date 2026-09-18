@@ -49,9 +49,11 @@ flusso è diviso in due fasi, con i ruoli scambiati rispetto al design più ovvi
   generato. Non deve leggere né scrivere nulla, né lanciare nulla: si limita a
   chiamare l'API di Resolve con i valori già pronti.
 
-Ogni video analizzato genera un proprio script con un nome dedicato (es.
-`Auto Template - mio_video_20260916_143000.lua`), quindi il menu Script di Resolve
-funge anche da lista dei "progetti pronti da costruire".
+Ogni video analizzato genera un proprio script con un nome dedicato, basato sul
+nome del file video (es. `Auto Template - mio_video.lua`; una seconda analisi
+dello stesso video produce `Auto Template - mio_video_2.lua`, e così via),
+quindi il menu Script di Resolve funge anche da lista dei "progetti pronti da
+costruire".
 
 Funziona così sia su Resolve **Free** che **Studio**.
 
