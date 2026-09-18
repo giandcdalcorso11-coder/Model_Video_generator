@@ -68,17 +68,6 @@ def _audio_items(template: Template) -> list[tuple[bool, Union[VoiceSegment, Mus
     return sorted(items, key=lambda pair: pair[1].start_seconds)
 
 
-def _record_frame_expr(seconds: float, fps: float) -> str:
-    """A Lua expression for an absolute recordFrame: timelineStartFrame
-    (Timeline:GetStartFrame(), read once near the top of the generated
-    script) plus this position's own offset from the start of the
-    template, floored at 1 (never literal 0). recordFrame is an ABSOLUTE
-    frame in Resolve's own internal clock, and real Resolve timelines start
-    at timecode 01:00:00:00, not 00:00:00:00 -- a bare small value sits
-    before the timeline's actual addressable start."""
-    return f"timelineStartFrame + {max(1, seconds_to_frames(seconds, fps))}"
-
-
 def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) -> str:
     """Prepares every media/subtitle asset the timeline needs (writing files
     under work_dir via media_prep.py) and returns the full Lua source that
@@ -113,17 +102,6 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     emit("  return")
     emit("end")
     emit("project:SetCurrentTimeline(timeline)")
-    # recordFrame is an ABSOLUTE frame number in Resolve's own internal
-    # clock, not relative to the timeline's own visible start -- and
-    # Resolve timelines conventionally start at timecode 01:00:00:00 (one
-    # hour in), not 00:00:00:00. Every recordFrame value tried without this
-    # offset (0, then 1, then batched) landed identically wrong on a real
-    # Resolve install, always falling back to end-of-timeline placement --
-    # consistent with small values like 0/1 being before the timeline's
-    # actual addressable start and getting rejected/ignored. GetStartFrame()
-    # is the documented way to read that offset at runtime instead of
-    # hardcoding the 01:00:00:00 convention (which is configurable).
-    emit("local timelineStartFrame = timeline:GetStartFrame()")
     emit("")
     emit(f"local sourceItems = mediaPool:ImportMedia({{ {_lua_long_string(template.source_video_path)} }})")
     emit("local sourceItem = sourceItems and sourceItems[1]")
@@ -133,20 +111,51 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     emit("end")
     emit("")
 
-    # Subtitle tracks are built HERE, before anything else touches the
-    # timeline -- deliberately. recordFrame never worked for this specific
-    # kind of clip on a real Resolve install: every value and combination
-    # tried (0, 1, offset by timelineStartFrame, batched or not) still
-    # landed the caption text past the end of the timeline instead of at
-    # its real position, even though the *exact same* recordFrame mechanism
-    # (see the voice/music code further below) works correctly for normal
-    # audio/video clips. The one placement that HAS worked reliably in every
-    # test all session is a clip appended with no recordFrame at all while
-    # the timeline is still completely empty -- it simply lands at frame 0.
-    # Doing the subtitle import first (before any video/audio content
-    # exists) exploits that, instead of fighting recordFrame for this media
-    # type. The .srt file's own per-cue timestamps then take over from
-    # frame 0, positioning each caption correctly relative to the video.
+    placeholder_cache = PlaceholderClipCache(work_dir, fps)
+    for item in _timeline_items(template):
+        if isinstance(item, ClipSlot):
+            start_frame = seconds_to_frames(item.source_in_seconds, fps)
+            end_frame = max(start_frame, seconds_to_frames(item.source_out_seconds, fps) - 1)
+            emit(
+                "local appended = mediaPool:AppendToTimeline({ "
+                f"{{ mediaPoolItem = sourceItem, startFrame = {start_frame}, endFrame = {end_frame} }} }})"
+            )
+            if item.transforms:
+                emit("if appended and appended[1] then")
+                for transform in item.transforms:
+                    for key, value in transform.properties.items():
+                        emit(f"  appended[1]:SetProperty({_lua_long_string(key)}, {_lua_literal(value)})")
+                emit("end")
+            emit("")
+        else:
+            duration = item.end_seconds - item.start_seconds
+            if duration <= 0:
+                continue
+            placeholder_path, _ = placeholder_cache.get_or_create(duration)
+            end_frame = max(0, seconds_to_frames(duration, fps) - 1)
+            emit(f"local gapItems = mediaPool:ImportMedia({{ {_lua_long_string(str(placeholder_path))} }})")
+            emit("if gapItems and gapItems[1] then")
+            emit(
+                "  mediaPool:AppendToTimeline({ "
+                f"{{ mediaPoolItem = gapItems[1], startFrame = 0, endFrame = {end_frame} }} }})"
+            )
+            emit("end")
+            emit("")
+
+    for note in template.effect_notes:
+        frame_id = seconds_to_frames(note.at_seconds, fps)
+        label = note.label or "Detected effect"
+        note_text = (
+            f"Rilevato automaticamente ({note.source}, confidenza={note.confidence:.2f}). "
+            "Applica manualmente l'effetto/transizione corrispondente qui."
+        )
+        emit(
+            f"timeline:AddMarker({frame_id}, \"{MARKER_COLOR}\", "
+            f"{_lua_long_string(label)}, {_lua_long_string(note_text)}, 1)"
+        )
+    if template.effect_notes:
+        emit("")
+
     def emit_subtitle_track(overlays, filename: str, track_name: str) -> None:
         srt_path = work_dir / filename
         if not write_srt(overlays, srt_path):
@@ -163,12 +172,16 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
         emit("  if srtItems and srtItems[1] then")
         emit('    timeline:AddTrack("subtitle")')
         emit('    local idx = timeline:GetTrackCount("subtitle")')
-        emit(f"    timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
+        # recordFrame = 1, not 0: a real Resolve install placed this at the
+        # end of the timeline instead of the start when it was 0 -- see the
+        # matching comment on the voice/music recordFrame below for the full
+        # reasoning (0 appears to be treated as an unset sentinel).
         emit(
-            "    local appended = mediaPool:AppendToTimeline({ { mediaPoolItem = srtItems[1], "
-            "trackIndex = idx } })"
+            "    local appended = mediaPool:AppendToTimeline({ "
+            "{ mediaPoolItem = srtItems[1], trackIndex = idx, recordFrame = 1 } })"
         )
         emit("    if appended and appended[1] then")
+        emit(f"      timeline:SetTrackName(\"subtitle\", idx, {_lua_long_string(track_name)})")
         emit(
             f'      print("[Auto Template] Traccia sottotitoli \\"{track_name}\\" importata: " .. '
             f"{_lua_long_string(str(srt_path))})"
@@ -192,74 +205,6 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
     emit_subtitle_track(template.texts, "on_screen_text.srt", ON_SCREEN_TEXT_TRACK_NAME)
     emit_subtitle_track(template.dialogue, "dialogue.srt", DIALOGUE_TRACK_NAME)
 
-    # Every clip/gap on the main track gets an explicit recordFrame too, not
-    # just voice/music -- otherwise it depends on plain sequential ordering
-    # ("no recordFrame" lands at the end of whatever's already on the
-    # timeline), which broke the moment the subtitle import above got
-    # appended first: the main track's first clip then landed AFTER the
-    # subtitle block instead of at the true start (confirmed on a real
-    # Resolve install). An explicit absolute position makes every track
-    # immune to what else was appended before or after it.
-    placeholder_cache = PlaceholderClipCache(work_dir, fps)
-    for item in _timeline_items(template):
-        if isinstance(item, ClipSlot):
-            record_frame = _record_frame_expr(item.timeline_start_seconds, fps)
-            start_frame = seconds_to_frames(item.source_in_seconds, fps)
-            end_frame = max(start_frame, seconds_to_frames(item.source_out_seconds, fps) - 1)
-            emit(
-                "local appended = mediaPool:AppendToTimeline({ "
-                f"{{ mediaPoolItem = sourceItem, startFrame = {start_frame}, endFrame = {end_frame}, "
-                f"recordFrame = {record_frame} }} }})"
-            )
-            if item.transforms:
-                emit("if appended and appended[1] then")
-                for transform in item.transforms:
-                    for key, value in transform.properties.items():
-                        emit(f"  appended[1]:SetProperty({_lua_long_string(key)}, {_lua_literal(value)})")
-                emit("end")
-            emit("")
-        else:
-            duration = item.end_seconds - item.start_seconds
-            if duration <= 0:
-                continue
-            record_frame = _record_frame_expr(item.start_seconds, fps)
-            placeholder_path, _ = placeholder_cache.get_or_create(duration)
-            end_frame = max(0, seconds_to_frames(duration, fps) - 1)
-            emit(f"local gapItems = mediaPool:ImportMedia({{ {_lua_long_string(str(placeholder_path))} }})")
-            emit("if gapItems and gapItems[1] then")
-            emit(
-                "  mediaPool:AppendToTimeline({ "
-                f"{{ mediaPoolItem = gapItems[1], startFrame = 0, endFrame = {end_frame}, "
-                f"recordFrame = {record_frame} }} }})"
-            )
-            emit("end")
-            emit("")
-
-    for note in template.effect_notes:
-        frame_id = seconds_to_frames(note.at_seconds, fps)
-        label = note.label or "Detected effect"
-        note_text = (
-            f"Rilevato automaticamente ({note.source}, confidenza={note.confidence:.2f}). "
-            "Applica manualmente l'effetto/transizione corrispondente qui."
-        )
-        emit(
-            f"timeline:AddMarker({frame_id}, \"{MARKER_COLOR}\", "
-            f"{_lua_long_string(label)}, {_lua_long_string(note_text)}, 1)"
-        )
-    if template.effect_notes:
-        emit("")
-
-    # Everything below that needs an explicit timeline position (voice,
-    # music, their silence fillers) goes through its own separate
-    # AppendToTimeline call, each with an explicit recordFrame -- NOT
-    # batched into one shared call. A batched version was tried and tested
-    # worse on a real Resolve install (items landed with garbled/merged
-    # durations instead of their own precise ones) -- reverted so this fix
-    # (the timelineStartFrame offset below) can be verified in isolation,
-    # one change at a time. Unlike subtitles (built at the very top of this
-    # function instead), recordFrame + timelineStartFrame DOES correctly
-    # position normal audio/video clips like these -- confirmed on a real
-    # Resolve install.
     if template.voice_segments or template.music_segments:
         silence_cache = SilentAudioPlaceholderCache(work_dir)
         emit('timeline:AddTrack("audio")')
@@ -276,7 +221,22 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
                 continue
             real_track = "voiceTrackIndex" if is_voice else "musicTrackIndex"
             silent_track = "musicTrackIndex" if is_voice else "voiceTrackIndex"
-            record_frame = _record_frame_expr(segment.start_seconds, fps)
+
+            # AppendToTimeline always lands at the end of the *whole* timeline's
+            # current duration, regardless of which track is targeted -- not at
+            # frame 0 of that (possibly still-empty) track. Since the Voice/Music
+            # tracks are built after the main video track already has content,
+            # every append here must pin its exact timeline position explicitly
+            # via recordFrame, or it ends up appended after the video instead of
+            # aligned in time with it (observed on a real Resolve install).
+            #
+            # recordFrame is floored at 1, never 0: a real Resolve install
+            # placed a subtitle item with recordFrame = 0 at the end of the
+            # timeline instead of the start, exactly like when no recordFrame
+            # is given at all -- consistent with 0 being treated as an unset
+            # sentinel rather than a valid explicit position (recordFrame=1
+            # worked). The 1-frame shift (<1/24s) is imperceptible.
+            record_frame = max(1, seconds_to_frames(segment.start_seconds, fps))
 
             start_frame = seconds_to_frames(segment.start_seconds, fps)
             end_frame = max(start_frame, seconds_to_frames(segment.end_seconds, fps) - 1)
@@ -292,8 +252,7 @@ def generate_lua_script(template: Template, timeline_name: str, work_dir: Path) 
             emit("if silenceItems and silenceItems[1] then")
             emit(
                 "  mediaPool:AppendToTimeline({ { mediaPoolItem = silenceItems[1], startFrame = 0, "
-                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, "
-                f"recordFrame = {record_frame} }} }})"
+                f"endFrame = {silence_end_frame}, trackIndex = {silent_track}, recordFrame = {record_frame} }} }})"
             )
             emit("end")
             emit("")

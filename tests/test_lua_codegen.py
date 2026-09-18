@@ -82,21 +82,6 @@ def test_generate_lua_script_is_syntactically_plausible_and_complete(tmp_path):
     assert "startFrame = 0, endFrame = 49" in src  # clip 0: 0-2s @ 25fps
     assert "startFrame = 75, endFrame = 124" in src  # clip 1: 3-5s @ 25fps
     assert "endFrame = 24" in src  # 1s gap placeholder @ 25fps
-
-    # Regression: the main clip/gap track must carry an explicit recordFrame
-    # too, not just voice/music -- otherwise its plain sequential ordering
-    # ("no recordFrame" = append after whatever's already on the timeline)
-    # breaks the moment anything else (the subtitle import) gets appended
-    # to the timeline first, which is now deliberately the case (confirmed
-    # on a real Resolve install: the main track's first clip landed AFTER
-    # the subtitle block instead of at the true start, until this fix).
-    assert (
-        "startFrame = 0, endFrame = 49, recordFrame = timelineStartFrame + 1" in src
-    )  # clip 0 @ timeline_start_seconds=0.0, floored at 1
-    assert (
-        "startFrame = 75, endFrame = 124, recordFrame = timelineStartFrame + 75" in src
-    )  # clip 1 @ timeline_start_seconds=3.0s
-    assert "endFrame = 24, recordFrame = timelineStartFrame + 50" in src  # gap @ start_seconds=2.0s
     assert 'timeline:AddMarker(50, "Yellow", [[dissolve]]' in src
     assert "Testo a schermo" in src
     assert "Dialogo (trascrizione)" in src
@@ -110,82 +95,24 @@ def test_generate_lua_script_is_syntactically_plausible_and_complete(tmp_path):
     assert "ciao a tutti" in dialogue_srt
 
 
-def test_generate_lua_script_appends_subtitles_first_without_record_frame(tmp_path):
-    """Regression test: recordFrame never worked for subtitle-derived clips
-    on a real Resolve install (every value/combination tried still landed
-    the caption text past the end of the timeline). The fix is to append
-    subtitle tracks BEFORE any other content touches the timeline, while it
-    is still empty -- appending with no recordFrame at all reliably lands
-    at frame 0 in that case (confirmed all session for the main video
-    track's own first clip). So the subtitle append must have no
-    recordFrame, and must come before the first video clip append."""
-    template = make_template()
-    with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
-        src = generate_lua_script(template, "TestTimeline", tmp_path)
-
-    assert "mediaPoolItem = srtItems[1], trackIndex = idx } })" in src
-
-    first_video_clip_append = "startFrame = 0, endFrame = 49"  # clip 0: 0-2s @ 25fps
-    assert src.index("mediaPoolItem = srtItems[1]") < src.index(first_video_clip_append)
-
-
 def test_generate_lua_script_pins_voice_and_music_appends_to_absolute_record_frame(tmp_path):
     """Regression test: AppendToTimeline lands at the end of the whole
     timeline's current duration regardless of trackIndex (confirmed on a
     real Resolve install -- Voice/Music tracks ended up appended after the
     video instead of aligned in time with it). Every voice/music append,
     real or silence filler, must pin an explicit recordFrame so it lands at
-    the segment's actual absolute position instead.
-
-    recordFrame must also be offset by timelineStartFrame (Timeline:GetStartFrame()),
-    never a bare small integer: recordFrame is an ABSOLUTE frame number in
-    Resolve's own internal clock, and real Resolve timelines start at
-    timecode 01:00:00:00 (not 00:00:00:00) -- a bare 0 or 1 sits before the
-    timeline's actual addressable start. Confirmed on a real Resolve install
-    across four attempts so far (recordFrame=0, recordFrame=1, batched with
-    recordFrame=1, batched with the timelineStartFrame offset) that each
-    landed wrong in its own way -- the batched variants are especially
-    suspect, since they also changed a *different* durations/positions
-    symptom, so this test now pins the un-batched (one AppendToTimeline
-    call per item) architecture to isolate the offset fix on its own."""
+    the segment's actual absolute position instead. recordFrame is also
+    floored at 1 (never literal 0): a real Resolve install placed a
+    recordFrame=0 item at the end of the timeline instead of the start."""
     template = make_template()  # voice: 0.0-1.0s, music: 1.0-5.0s @ 25fps
     with patch("subprocess.run", side_effect=_fake_ffmpeg_run):
         src = generate_lua_script(template, "TestTimeline", tmp_path)
 
-    assert "local timelineStartFrame = timeline:GetStartFrame()" in src
-    assert (
-        src.count("mediaType = 2, trackIndex = voiceTrackIndex, recordFrame = timelineStartFrame + 1")
-        == 1
-    )  # voice clip
-    assert (
-        src.count("trackIndex = musicTrackIndex, recordFrame = timelineStartFrame + 1") == 1
-    )  # its music-track silence filler
-    assert (
-        src.count("mediaType = 2, trackIndex = musicTrackIndex, recordFrame = timelineStartFrame + 25")
-        == 1
-    )  # music clip
-    assert (
-        src.count("trackIndex = voiceTrackIndex, recordFrame = timelineStartFrame + 25") == 1
-    )  # its voice-track silence filler
+    assert src.count("mediaType = 2, trackIndex = voiceTrackIndex, recordFrame = 1") == 1  # voice clip
+    assert src.count("trackIndex = musicTrackIndex, recordFrame = 1") == 1  # its music-track silence filler
+    assert src.count("mediaType = 2, trackIndex = musicTrackIndex, recordFrame = 25") == 1  # music clip
+    assert src.count("trackIndex = voiceTrackIndex, recordFrame = 25") == 1  # its voice-track silence filler
     assert "recordFrame = 0" not in src
-    assert "recordFrame = 1" not in src  # must always be offset, never bare
-
-    # Reverted: batching every positioned item into one shared
-    # AppendToTimeline(positionedClips) call tested WORSE on a real Resolve
-    # install (garbled/merged clip durations) than the separate-calls
-    # architecture it replaced. Back to one AppendToTimeline call per item.
-    assert "positionedClips" not in src
-    assert (
-        src.count("mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
-                  "startFrame = 0, endFrame = 24, mediaType = 2")
-        == 1
-    )  # voice clip, its own AppendToTimeline call
-    assert (
-        src.count("mediaPool:AppendToTimeline({ { mediaPoolItem = sourceItem, "
-                  "startFrame = 25, endFrame = 124, mediaType = 2")
-        == 1
-    )  # music clip, its own AppendToTimeline call
-    assert src.count("mediaPool:AppendToTimeline({ { mediaPoolItem = silenceItems[1]") == 2
 
 
 def test_generate_lua_script_applies_transforms(tmp_path):
@@ -261,19 +188,16 @@ def test_generated_script_runs_correctly_against_resolve_stub_with_sandbox_enfor
 
     assert "SCRIPT ERROR" not in output, output
     assert "MediaPool:CreateEmptyTimeline(TestTimeline)" in output
-    # Main-track clips also carry recordFrame now (last arg), offset by the
-    # stub's timelineStartFrame=90000 -- see the comment on _record_frame_expr.
-    assert "MediaPool:AppendToTimeline(0, 49, nil, nil, 90001)" in output  # clip 0: 0-2s @ 25fps
-    assert "MediaPool:AppendToTimeline(75, 124, nil, nil, 90075)" in output  # clip 1: 3-5s @ 25fps
+    assert "MediaPool:AppendToTimeline(0, 49" in output  # clip 0: 0-2s @ 25fps
+    assert "MediaPool:AppendToTimeline(75, 124" in output  # clip 1: 3-5s @ 25fps
     assert "Timeline:AddMarker(50, Yellow, dissolve" in output
 
     # Voice (0-1s) and music (1-5s) appends must carry an explicit recordFrame
     # (last arg) so they land at their real timeline position instead of
     # wherever AppendToTimeline's own end-of-timeline pointer happens to be.
-    # recordFrame = timelineStartFrame (90000 in the stub, see
-    # lua_stub_harness.lua's GetStartFrame) + the floored-at-1 offset.
-    assert "MediaPool:AppendToTimeline(0, 24, 2, 2, 90001)" in output  # voice clip
-    assert "MediaPool:AppendToTimeline(25, 124, 2, 3, 90025)" in output  # music clip
+    # recordFrame is floored at 1 (never literal 0, see lua_codegen.py).
+    assert "MediaPool:AppendToTimeline(0, 24, 2, 2, 1)" in output  # voice clip, recordFrame=1 (floored)
+    assert "MediaPool:AppendToTimeline(25, 124, 2, 3, 25)" in output  # music clip, recordFrame=25
     assert "Timeline:SetTrackName(subtitle" in output
     assert "Voce" in output
     assert "Musica" in output

@@ -16,10 +16,7 @@ end
 
 local calls = {}
 local function record(name, ...)
-  -- n must be captured explicitly: a trailing non-nil value (recordFrame)
-  -- after a nil hole (mediaType/trackIndex left unset on main-track clips)
-  -- would otherwise make #args / ipairs stop early and silently drop it.
-  table.insert(calls, { name = name, args = { ... }, n = select("#", ...) })
+  table.insert(calls, { name = name, args = { ... } })
 end
 
 local track_counts = { subtitle = 0, audio = 1 }
@@ -38,11 +35,6 @@ function timeline_mt:ImportIntoTimeline(path, opts)
   track_counts.subtitle = track_counts.subtitle + 1
 end
 function timeline_mt:GetTrackCount(t) return track_counts[t] or 0 end
--- Simulates a real Resolve timeline starting at 01:00:00:00 rather than
--- 00:00:00:00 (the usual convention) -- a nonzero, non-round value so a
--- test can't accidentally pass just because timelineStartFrame happens
--- to be 0 or match some other stub default.
-function timeline_mt:GetStartFrame() return 90000 end
 function timeline_mt:SetTrackName(t, i, n) record("Timeline:SetTrackName", t, i, n) end
 function timeline_mt:AddTrack(t) track_counts[t] = (track_counts[t] or 0) + 1 end
 
@@ -57,12 +49,9 @@ function mediaPool_mt:ImportMedia(paths)
   return { setmetatable({}, timeline_item_mt) }
 end
 function mediaPool_mt:AppendToTimeline(clipInfos)
-  local results = {}
-  for _, info in ipairs(clipInfos) do
-    record("MediaPool:AppendToTimeline", info.startFrame, info.endFrame, info.mediaType, info.trackIndex, info.recordFrame)
-    table.insert(results, setmetatable({}, timeline_item_mt))
-  end
-  return results
+  local info = clipInfos[1]
+  record("MediaPool:AppendToTimeline", info.startFrame, info.endFrame, info.mediaType, info.trackIndex, info.recordFrame)
+  return { setmetatable({}, timeline_item_mt) }
 end
 
 local project_mt = {}
@@ -95,6 +84,6 @@ end
 print(string.format("Total calls recorded: %d", #calls))
 for _, c in ipairs(calls) do
   local parts = {}
-  for i = 1, c.n do table.insert(parts, tostring(c.args[i])) end
+  for _, a in ipairs(c.args) do table.insert(parts, tostring(a)) end
   print(c.name .. "(" .. table.concat(parts, ", ") .. ")")
 end
