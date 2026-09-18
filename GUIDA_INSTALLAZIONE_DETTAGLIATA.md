@@ -140,14 +140,32 @@ la guida, ma va fatto una sola volta.
 
    ![Pagina release builds di gyan.dev con il link ffmpeg-release-essentials.zip evidenziato](images/02-ffmpeg-download.png)
 
-3. Estrai lo zip. Dentro trovi una cartella con un nome lungo tipo
-   `ffmpeg-7.x-essentials_build`.
+3. Il file scaricato di solito finisce nella cartella **Download**. Fai clic
+   destro su `ffmpeg-release-essentials.zip` e scegli **"Estrai tutto..."**
+   (in inglese "Extract All..."), poi **"Estrai"** nella finestra che appare
+   (va bene estrarlo lì in Download, lo spostiamo al passo dopo). Dentro la
+   cartella estratta trovi una sotto-cartella con un nome lungo tipo
+   `ffmpeg-7.x-essentials_build`: è quella che ci serve.
 
    ![Cartella estratta dallo zip di FFmpeg, con le sottocartelle bin/doc/presets](images/03-ffmpeg-cartella-estratta.png)
 
-4. **Sposta** (non copiare: sposta) quella cartella direttamente dentro `C:\`,
-   e rinominala semplicemente in `ffmpeg`. Alla fine deve esistere il percorso
-   `C:\ffmpeg\bin\ffmpeg.exe`.
+4. Ora **sposta** questa cartella (`ffmpeg-7.x-essentials_build`, non quella
+   attorno, se ne è stata creata una doppia) dentro `C:\` e rinominala in
+   `ffmpeg`. Passo per passo, per non sbagliare:
+   - Apri una **seconda** finestra di Esplora File (Windows+E), e nella barra
+     dell'indirizzo in alto scrivi `C:\` e premi Invio: ora vedi il contenuto
+     della radice del disco C.
+   - Nella **prima** finestra (quella con la cartella estratta), clicca una
+     volta sulla cartella `ffmpeg-7.x-essentials_build` per selezionarla, poi
+     **Ctrl+X** (taglia — non Ctrl+C, che copia soltanto).
+   - Passa alla **seconda** finestra (quella su `C:\`) e premi **Ctrl+V**
+     (incolla). Se Windows chiede il permesso di amministratore per scrivere
+     in `C:\`, conferma.
+   - Ora, dentro `C:\`, fai clic destro sulla cartella appena incollata >
+     **Rinomina** > scrivi `ffmpeg` (senza altro testo) e premi Invio.
+   - Alla fine deve esistere esattamente il percorso `C:\ffmpeg\bin\ffmpeg.exe`
+     — apri `C:\ffmpeg\bin` in Esplora File per controllare che `ffmpeg.exe`
+     sia lì dentro.
 
    📸 *Screenshot: Esplora File con la cartella `C:\ffmpeg\bin` aperta, che
    mostra `ffmpeg.exe` dentro.*
@@ -217,10 +235,25 @@ Due modi — scegli quello più comodo per te.
 
    📸 *Screenshot: pulsante "Code" aperto con l'opzione "Download ZIP" evidenziata.*
 
-3. Estrai lo zip scaricato in una posizione stabile del tuo PC — per esempio
-   `Documenti\AutoTemplate`. Evita il Desktop se hai OneDrive attivo sul
-   Desktop: può rallentare o interferire con alcune operazioni (l'abbiamo
-   visto succedere durante lo sviluppo).
+3. Il file scaricato (qualcosa come `Model_Video_generator-main.zip`) di
+   solito finisce nella cartella **Download**. Fai clic destro su di esso e
+   scegli **"Estrai tutto..."**, poi **"Estrai"**.
+4. ⚠️ **Il nome della cartella estratta NON sarà "AutoTemplate"**: GitHub la
+   chiama automaticamente qualcosa come `Model_Video_generator-main`. Per non
+   confonderti con il resto di questa guida (che parla sempre di una cartella
+   chiamata `AutoTemplate`), rinominala tu:
+   - Sposta quella cartella (Ctrl+X sulla cartella, poi Ctrl+V nella
+     posizione finale) in un punto stabile del tuo PC — per esempio dentro
+     **Documenti**. Evita il Desktop se hai OneDrive attivo sul Desktop: può
+     rallentare o interferire con alcune operazioni (l'abbiamo visto
+     succedere durante lo sviluppo).
+   - Fai clic destro sulla cartella > **Rinomina** > scrivi `AutoTemplate` e
+     premi Invio.
+   - Alla fine deve esistere un percorso tipo `Documenti\AutoTemplate\README.md`
+     — apri la cartella `AutoTemplate` e controlla di vedere dentro i file
+     `README.md`, `requirements.txt`, la cartella `resolve_plugin`, ecc.
+     (non una singola sotto-cartella con un altro nome lungo: se la vedi,
+     sei entrato un livello in più che non serve — torna indietro di uno).
 
 ⚠️ Con questa opzione, per ricevere gli aggiornamenti futuri del plugin dovrai
 riscaricare lo zip e sostituire la cartella a mano (con l'opzione B basta un
@@ -249,6 +282,13 @@ così non ti confondi.
 1. Premi il tasto **Windows** sulla tastiera (non serve cliccare prima da
    nessuna parte).
 2. Scrivi semplicemente: `powershell`
+
+   ⚠️ Se il tuo PC mostra due risultati diversi ("Windows PowerShell" e
+   "PowerShell"), va bene **uno qualsiasi dei due** — in questa guida
+   "terminale", "PowerShell" e "prompt dei comandi" indicano sempre la stessa
+   cosa: la finestra dove scrivere i comandi che seguono. Non usare invece
+   "Prompt dei comandi"/"cmd" se compare tra i risultati: alcuni comandi di
+   questa guida sono scritti per PowerShell e non funzionano identici lì.
 
    📸 *Screenshot: menu Start con "powershell" scritto e il risultato
    "Windows PowerShell" evidenziato.*
