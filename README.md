@@ -91,7 +91,13 @@ ollama pull qwen2.5vl
 ```
 
 Su hardware con poca VRAM, usa un modello più leggero modificando
-`resolve_plugin/user_config.json` (crealo se non esiste):
+`user_config.json` (crealo se non esiste) **nella copia installata**, non
+nella cartella del progetto scaricata da GitHub:
+`C:\Users\<tuo-utente>\AppData\Roaming\AutoTemplatePlugin\resolve_plugin\user_config.json`
+— è quella che `run_build.py` legge davvero; un file con lo stesso nome
+creato dentro la cartella del progetto viene ignorato. Sopravvive a
+`git pull`/`python scripts/install.py` successivi, quindi va creato una
+volta sola.
 
 ```json
 { "ollama": { "model": "moondream" } }
@@ -99,6 +105,19 @@ Su hardware con poca VRAM, usa un modello più leggero modificando
 
 `ollama serve` deve essere in esecuzione (di solito parte automaticamente dopo
 l'installazione di Ollama).
+
+Con lo stesso file puoi anche cambiare la dimensione del modello **Whisper**
+usato per trascrivere il parlato (vedi ["Separazione voce/musica e
+trascrizione"](#separazione-vocemusica-e-trascrizione-dialogo) più sotto),
+se noti imprecisioni nei tratti con voce veloce:
+
+```json
+{ "whisper_model_size": "small" }
+```
+
+(puoi combinare le due chiavi nello stesso file JSON; opzioni in ordine di
+precisione crescente e velocità decrescente: `tiny`, `base` [default],
+`small`, `medium`, `large-v3`).
 
 **Alternativa opzionale**: Google Gemini free tier (limiti di richieste stretti,
 serve una API key gratuita da [Google AI Studio](https://aistudio.google.com)):

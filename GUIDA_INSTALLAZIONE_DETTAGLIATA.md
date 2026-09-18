@@ -223,6 +223,11 @@ la guida, ma va fatto una sola volta.
    GB) o solo grafica integrata, puoi usare un modello più leggero — vedi la
    sezione "Configurare il backend AI" nel [README](README.md).
 
+   💡 Se invece noti che la **trascrizione del parlato** (sezione 8) perde
+   qualche parola nei tratti in cui si parla veloce, il file da modificare è
+   lo stesso — vedi sempre "Configurare il backend AI" nel README per la
+   chiave `whisper_model_size` (usa `"small"` per più precisione).
+
 ---
 
 ## 4. Scaricare il progetto da GitHub
