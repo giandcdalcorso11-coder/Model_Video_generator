@@ -384,19 +384,50 @@ opzioni"** (l'icona con i tre puntini) del menu tasto destro.
 
 ## 8. Analizzare un video
 
-Nel terminale (aperto come al [passo 5](#5-aprire-un-terminale-nella-cartella-giusta),
-non serve che sia dentro la cartella del progetto per questo comando):
+### La logica del comando (leggi questa parte una volta, poi non dovrai più chiedere a nessuno)
+
+Ogni analisi si lancia con **un unico comando** fatto di due parti ben
+distinte — capire questa struttura una volta ti basta per sempre, anche per
+video diversi:
+
+```powershell
+python "<PARTE FISSA: dove vive il plugin>" "<PARTE VARIABILE: il video da analizzare>"
+```
+
+- **La prima parte (`...\AutoTemplatePlugin\run_build.py`) non cambia mai**,
+  a meno che tu non reinstalli il plugin su un altro PC o un altro utente
+  Windows. È lo script che `python scripts/install.py` (passo 6) ha scritto
+  dentro `C:\Users\<tuo-utente>\AppData\Roaming\AutoTemplatePlugin\`. La trovi
+  anche riscrivendola sempre uguale ogni volta che rilanci
+  `python scripts/install.py`, se te la sei persa.
+- **La seconda parte è l'unica cosa che cambi ogni volta**: il percorso del
+  video che vuoi analizzare in quel momento. Copialo sempre con **Shift +
+  clic destro > "Copia come percorso"** (spiegato al
+  [passo 7](#7-come-copiare-un-percorso-di-file-senza-sbagliare)) invece di
+  scriverlo a mano — elimina qualsiasi errore di spazi o virgolette.
+
+In pratica, per **ogni nuovo video** che vuoi analizzare, il procedimento è
+sempre identico:
 
 1. Apri DaVinci Resolve e crea/apri un progetto — **deve restare aperto**,
-   ti servirà al passo successivo.
-2. Copia il percorso del tuo video come spiegato al
-   [passo 7](#7-come-copiare-un-percorso-di-file-senza-sbagliare).
-3. Scrivi il comando che `install.py` ti ha mostrato, incollando il percorso
-   del video al posto giusto:
+   ti servirà al passo successivo (passo 9).
+2. Apri un terminale (metodo A o B del [passo 5](#5-aprire-un-terminale-nella-cartella-giusta) — per questo comando non serve che sia dentro la cartella del progetto).
+3. Copia il percorso del video che vuoi analizzare (passo 7).
+4. Scrivi `python `, poi il percorso fisso di `run_build.py` tra virgolette,
+   poi uno spazio, poi incolla (Ctrl+V) il percorso del video appena
+   copiato — risultato tipo:
    ```powershell
    python "C:\Users\<tuo-utente>\AppData\Roaming\AutoTemplatePlugin\run_build.py" "C:\percorso\del\tuo\video.mp4"
    ```
-4. ✅ Vedrai una serie di righe di avanzamento tipo:
+5. Premi Invio.
+
+⚠️ **Non serve rifare `git pull` o `python scripts/install.py` prima di ogni
+analisi** — quei due comandi servono solo quando il *codice del plugin* è
+stato aggiornato (nuova versione da GitHub). Per analizzare un video nuovo
+con la stessa versione del plugin già installata, basta il comando sopra,
+cambiando solo il percorso del video.
+
+6. ✅ Vedrai una serie di righe di avanzamento tipo:
    ```
    [0/100] Reading video metadata...
    [5/100] Detecting cuts...
