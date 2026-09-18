@@ -41,7 +41,8 @@ Ollama e il modello AI, che pesano alcuni GB).
 8. [Analizzare un video](#8-analizzare-un-video)
 9. [Costruire la timeline in Resolve](#9-costruire-la-timeline-in-resolve)
 10. [Sostituire una clip del template con un tuo video](#10-sostituire-una-clip-del-template-con-un-tuo-video)
-11. [Problemi comuni](#problemi-comuni)
+11. [Dove vengono creati i file (e come pulirli)](#11-dove-vengono-creati-i-file-e-come-pulirli)
+12. [Problemi comuni](#problemi-comuni)
 
 ---
 
@@ -465,6 +466,66 @@ che l'inquadratura sia quella desiderata.
 
 Ripeti questi passi per ogni clip del template che vuoi sostituire con un tuo
 video.
+
+---
+
+## 11. Dove vengono creati i file (e come pulirli)
+
+Ogni volta che analizzi un video (passo 8), il plugin crea file in **due
+posti diversi** sul tuo PC — nessuno dei due viene mai pulito
+automaticamente, quindi si accumulano ad ogni prova. Un terzo posto contiene
+il plugin stesso (installato una sola volta, non per ogni prova) e non va
+mai toccato a mano.
+
+### 1. `C:\Users\<tuo-utente>\AutoTemplateProjects\` — una cartella per ogni analisi
+
+Ogni volta che lanci `run_build.py` su un video (anche riprovando lo stesso
+video più volte), qui dentro nasce una **nuova sottocartella**. Dentro trovi:
+
+| File | Cosa è |
+|---|---|
+| `source_video.mp4` (o altra estensione) | **Copia** del tuo video originale — l'originale sul tuo Desktop/altrove non viene mai toccato |
+| `on_screen_text.srt` / `dialogue.srt` | Sottotitoli generati (solo se il video aveva testo a schermo/parlato) |
+| `placeholder_XXs.mp4` | Piccoli video neri "segnaposto" per i gap/pause tra le clip |
+| `silence_XXs.wav` | Audio silenzioso "segnaposto" per riempire i buchi nelle tracce Voce/Musica |
+
+È la cartella che pesa di più: ogni prova include una copia intera del
+video analizzato.
+
+### 2. `C:\Users\<tuo-utente>\AppData\Roaming\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Edit\` — uno script per ogni analisi
+
+Qui trovi un file `Auto Template - <nome video>....lua` per ogni analisi
+fatta — è esattamente quello che vedi nel menu **Workspace > Scripts > Edit**
+di Resolve al passo 9. Anche questi si accumulano indefinitamente e
+affollano quel menu.
+
+### 3. `C:\Users\<tuo-utente>\AppData\Roaming\AutoTemplatePlugin\` — il plugin installato (non toccare)
+
+Questa **non** è una cartella per test: è una singola copia del codice del
+plugin, scritta da `python scripts/install.py` (passo 6) e sovrascritta ogni
+volta che lo rilanci. Non serve mai pulirla a mano.
+
+### Come pulire, tenendo solo l'ultima prova buona
+
+1. Apri Esplora File e vai su `C:\Users\<tuo-utente>\AutoTemplateProjects\`.
+2. Clicca sull'intestazione della colonna **"Data modifica"** per ordinare
+   (clicca due volte se serve, per avere il più recente in cima).
+3. La cartella più recente è la tua ultima prova — apri quella cartella e
+   controlla che `source_video.mp4` corrisponda al video giusto, per
+   sicurezza.
+4. Seleziona **tutte le altre cartelle** (clic sulla prima, poi Shift+clic
+   sull'ultima) e premi **Canc** per eliminarle.
+5. Vai su `C:\Users\<tuo-utente>\AppData\Roaming\Blackmagic Design\DaVinci
+   Resolve\Support\Fusion\Scripts\Edit\`.
+6. Stessa cosa: ordina per data, individua il file `.lua` più recente (deve
+   corrispondere alla cartella che hai tenuto al passo 4), elimina tutti gli
+   altri file `Auto Template - ...lua`.
+7. Riapri Resolve (o chiudi/riapri il menu Workspace > Scripts > Edit) per
+   vedere il menu pulito.
+
+⚠️ Non toccare mai i tuoi video originali (quelli sul Desktop o dove li hai
+salvati tu): non vengono mai creati/modificati da questo plugin, sono
+sempre solo tuoi.
 
 ---
 
