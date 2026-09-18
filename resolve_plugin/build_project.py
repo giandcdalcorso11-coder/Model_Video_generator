@@ -59,13 +59,11 @@ def _next_project_name(stem: str, scripts_edit_dir: Path, projects_root: Path) -
     return candidate
 
 
-def _print_timing_diagnostics(template, video_path: str) -> None:
-    """Prints the raw numbers behind the timeline's timing, so a mismatch
-    between the reconstructed video track and the text/voice/music
-    positions can be diagnosed from the terminal output instead of guessing
-    from a screenshot. Temporary debugging aid, not meant to stay forever --
-    remove once text/voice/music positioning is confirmed correct on a real
-    Resolve install."""
+def _print_result_summary(template, video_path: str) -> None:
+    """Prints a plain-language summary of what the analysis produced --
+    counts and time ranges for every part of the template -- so it's clear
+    from the terminal alone what to expect on the generated timeline,
+    without needing to open Resolve first to find out."""
     source_duration, _ = probe_duration_and_fps(video_path)
     reconstructed_duration = sum(c.duration_seconds for c in template.clips) + sum(
         g.end_seconds - g.start_seconds for g in template.gaps
@@ -80,14 +78,16 @@ def _print_timing_diagnostics(template, video_path: str) -> None:
         print(f"  {label}: {len(items)} elemento/i, da {min(starts):.2f}s a {max(ends):.2f}s")
 
     print()
-    print("--- Diagnostica tempi (temporanea) ---")
+    print("--- Riepilogo risultati analisi ---")
     print(f"  Durata video sorgente (ffprobe): {source_duration:.2f}s")
     print(f"  Durata timeline ricostruita (clip + gap in sequenza): {reconstructed_duration:.2f}s")
+    print(f"  Traccia video: {len(template.clips)} clip, {len(template.gaps)} spazi vuoti/gap")
     _range(template.texts, "Testo a schermo")
-    _range(template.dialogue, "Dialogo")
+    _range(template.dialogue, "Dialogo (trascrizione)")
     _range(template.voice_segments, "Voce")
     _range(template.music_segments, "Musica")
-    print("---------------------------------------")
+    print(f"  Effetti/transizioni segnalati (marker gialli): {len(template.effect_notes)}")
+    print("------------------------------------")
 
 
 def main(argv: list[str]) -> int:
@@ -116,9 +116,9 @@ def main(argv: list[str]) -> int:
         return 1
 
     try:
-        _print_timing_diagnostics(template, str(local_video_path))
-    except Exception as exc:  # noqa: BLE001 - diagnostics must never abort a real build
-        print(f"  (diagnostica tempi non disponibile: {exc})")
+        _print_result_summary(template, str(local_video_path))
+    except Exception as exc:  # noqa: BLE001 - the summary must never abort a real build
+        print(f"  (riepilogo non disponibile: {exc})")
 
     lua_source = generate_lua_script(template, timeline_name=stem, work_dir=project_dir)
 

@@ -432,18 +432,40 @@ stato aggiornato (nuova versione da GitHub). Per analizzare un video nuovo
 con la stessa versione del plugin già installata, basta il comando sopra,
 cambiando solo il percorso del video.
 
-6. ✅ Vedrai una serie di righe di avanzamento tipo:
+6. ✅ Vedrai una serie di righe di avanzamento — ora abbastanza dettagliate
+   da capire cosa sta facendo l'AI e cosa sta trovando, senza dover aprire
+   Resolve per scoprirlo:
    ```
+   [0/100] Modello per testo a schermo/effetti: ollama (qwen2.5vl)
    [0/100] Reading video metadata...
+   [1/100] Video: 8.20s a 30.00 fps
    [5/100] Detecting cuts...
+   [18/100] Rilevati 24 shot (soglia sensibilita' tagli: 12.0)
    [20/100] Detecting empty/black spaces...
-   [30/100] Transcribing voice & separating music...
-   [40/100] Analyzing clip 1/28 (text & effects)...
+   [29/100] Struttura video: 24 clip, 0 spazi vuoti/gap
+   [30/100] Transcribing voice & separating music... (modello Whisper: base)
+   [39/100] Parlato: 2 interventi vocali, 1 segmenti musicali, 2 righe trascritte
+   [40/100] Analyzing clip 1/24 (text & effects)...
+   ...
+   [99/100] Testo a schermo: 10 elemento/i trovati, 3 effetto/i o transizione segnalati
+   [100/100] Done.
+
+   --- Riepilogo risultati analisi ---
+     Durata video sorgente (ffprobe): 8.20s
+     Durata timeline ricostruita (clip + gap in sequenza): 8.20s
+     Traccia video: 24 clip, 0 spazi vuoti/gap
+     Testo a schermo: 10 elemento/i, da 2.47s a 7.80s
+     Dialogo (trascrizione): 2 elemento/i, da 1.20s a 6.80s
+     Voce: 2 elemento/i, da 1.20s a 6.80s
+     Musica: 1 elemento/i, da 0.00s a 8.20s
+     Effetti/transizioni segnalati (marker gialli): 3
+   ------------------------------------
    ```
-   Per un video sotto i 2 minuti, aspettati da una decina di secondi fino a
-   qualche minuto, soprattutto durante la fase "Analyzing clip" (usa l'AI
-   locale, la parte più lenta). **Non chiudere la finestra** finché non vedi
-   il messaggio finale "Fatto! ...".
+   I numeri esatti (quanti shot, quanto testo, ecc.) cambiano da video a
+   video — questo è solo un esempio. Per un video sotto i 2 minuti, aspettati
+   da una decina di secondi fino a qualche minuto, soprattutto durante la
+   fase "Analyzing clip" (usa l'AI locale, la parte più lenta). **Non
+   chiudere la finestra** finché non vedi il messaggio finale "Fatto! ...".
 
    📸 *Screenshot: terminale a fine analisi, con il messaggio "Fatto! In
    Resolve vai su Workspace > Scripts > Edit > ..." visibile.*

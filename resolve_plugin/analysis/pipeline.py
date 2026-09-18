@@ -134,9 +134,13 @@ def analyze_video(
             progress_callback(step, total, message)
 
     backend = ai_backend or get_backend()
+    backend_model = getattr(backend, "model", None)
+    backend_label = f"{CONFIG.analysis.ai_backend}" + (f" ({backend_model})" if backend_model else "")
 
+    report(0, 100, f"Modello per testo a schermo/effetti: {backend_label}")
     report(0, 100, "Reading video metadata...")
     duration, fps = scene_detect.probe_duration_and_fps(video_path)
+    report(1, 100, f"Video: {duration:.2f}s a {fps:.2f} fps")
 
     report(5, 100, "Detecting cuts...")
     shots = scene_detect.detect_shots(
@@ -145,16 +149,32 @@ def analyze_video(
         fps=fps,
         min_scene_len_seconds=CONFIG.analysis.scene_detect_min_scene_len_seconds,
     )
+    report(
+        18,
+        100,
+        f"Rilevati {len(shots)} shot (soglia sensibilita' tagli: "
+        f"{CONFIG.analysis.scene_detect_threshold})",
+    )
 
     report(20, 100, "Detecting empty/black spaces...")
     black_ranges = scene_detect.detect_black_frames(video_path)
 
     clips, gaps = _shots_and_gaps(shots, black_ranges)
+    report(
+        29,
+        100,
+        f"Struttura video: {len(clips)} clip, {len(gaps)} spazi vuoti/gap",
+    )
 
     template = Template(source_video_path=video_path, fps=fps, clips=clips, gaps=gaps)
 
     if CONFIG.analysis.enable_speech_analysis:
-        report(30, 100, "Transcribing voice & separating music...")
+        report(
+            30,
+            100,
+            f"Transcribing voice & separating music... (modello Whisper: "
+            f"{CONFIG.analysis.whisper_model_size})",
+        )
         try:
             voice_segments, music_segments, dialogue, music_notes = speech.analyze_speech_and_music(
                 video_path, duration
@@ -163,10 +183,18 @@ def analyze_video(
             template.music_segments = music_segments
             template.dialogue = dialogue
             template.effect_notes.extend(music_notes)
+            report(
+                39,
+                100,
+                f"Parlato: {len(voice_segments)} interventi vocali, "
+                f"{len(music_segments)} segmenti musicali, {len(dialogue)} righe trascritte",
+            )
         except RuntimeError as exc:
             # Optional feature: missing faster-whisper (or a failed ffmpeg
             # audio extraction) shouldn't abort the rest of the analysis.
             report(30, 100, f"Voice/music analysis skipped: {exc}")
+    else:
+        report(30, 100, "Analisi vocale disattivata (enable_speech_analysis=false)")
 
     total_clips = max(len(clips), 1)
     for i, clip in enumerate(clips):
@@ -179,5 +207,11 @@ def analyze_video(
         template.texts.extend(texts)
         template.effect_notes.extend(notes)
 
+    report(
+        99,
+        100,
+        f"Testo a schermo: {len(template.texts)} elemento/i trovati, "
+        f"{len(template.effect_notes)} effetto/i o transizione segnalati",
+    )
     report(100, 100, "Done.")
     return template
